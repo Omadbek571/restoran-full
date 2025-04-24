@@ -169,6 +169,26 @@ const printReceipt = (orderDetails) => {
   }
 }; // printReceipt funksiyasi tugadi
 
+// --- YANGI: Rol tarjimalari va funksiyasi ---
+const roleTranslations = {
+  waiter: "Ofitsiant",
+  chef: "Oshpaz",
+  cashier: "Kassir",
+  delivery: "Yetkazib beruvchi",
+  // Kerak bo'lsa boshqa rollarni ham qo'shing:
+  // manager: "Menejer",
+  // admin: "Administrator",
+};
+
+const translateRole = (roleName) => {
+  if (!roleName || typeof roleName !== 'string') {
+    return "N/A"; // Yoki "Noma'lum"
+  }
+  const lowerCaseRole = roleName.toLowerCase();
+  return roleTranslations[lowerCaseRole] || roleName; // Agar tarjima topilmasa, asl nomni qaytarish
+};
+// --- Rol tarjimalari tugadi ---
+
 // Asosiy Komponent
 export default function AdminDashboard() {
   const router = useRouter();
@@ -684,7 +704,8 @@ export default function AdminDashboard() {
                     setNewRole({ name: "" });
                     setShowAddRoleDialog(false);
                     refreshRoles();
-                    return `Rol "${roleData.name}" muvaffaqiyatli qo'shildi!`;
+                    // --- Yaxshilash: Qo'shilgan rolni ham tarjima qilish mumkin ---
+                    return `Rol "${translateRole(roleData.name)}" muvaffaqiyatli qo'shildi!`;
                 } else {
                      throw new Error(`Rol qo'shishda kutilmagan javob: ${response.status}`);
                 }
@@ -823,7 +844,8 @@ export default function AdminDashboard() {
   const confirmDeleteRole = async () => {
     if (!roleToDelete || !roleToDelete.id) return
     if (roleToDelete.employee_count > 0) {
-        toast.error(`"${roleToDelete.name}" rolini o'chirib bo'lmaydi, chunki unga xodimlar biriktirilgan.`);
+        // --- Yaxshilash: O'chirilayotgan rolni ham tarjima qilish ---
+        toast.error(`"${translateRole(roleToDelete.name)}" rolini o'chirib bo'lmaydi, chunki unga xodimlar biriktirilgan.`);
         setIsDeleteRoleConfirmOpen(false);
         setRoleToDelete(null);
         return;
@@ -832,6 +854,7 @@ export default function AdminDashboard() {
     if (!headers) return
 
     const roleName = roleToDelete.name;
+    const translatedRoleName = translateRole(roleName); // Tarjima
 
     toast.promise(
         axios.delete(
@@ -840,7 +863,7 @@ export default function AdminDashboard() {
         ).then(response => {
             if (response.status === 204) {
                 refreshRoles();
-                return `Rol "${roleName}" muvaffaqiyatli o'chirildi!`;
+                return `Rol "${translatedRoleName}" muvaffaqiyatli o'chirildi!`;
             } else {
                 throw new Error(`Rolni o'chirishda kutilmagan javob: ${response.status}`);
             }
@@ -851,10 +874,10 @@ export default function AdminDashboard() {
             error: { render({ data }) {
                 if (data.response?.status === 400 && data.response?.data?.detail?.toLowerCase().includes("cannot delete role with assigned users")) {
                     const count = roleToDelete.employee_count || 'bir nechta';
-                    toast.error(`"${roleName}" rolini o'chirib bo'lmaydi, chunki unga ${count} ta xodim biriktirilgan.`);
-                    return `"${roleName}" rolini o'chirib bo'lmaydi.`;
+                    toast.error(`"${translatedRoleName}" rolini o'chirib bo'lmaydi, chunki unga ${count} ta xodim biriktirilgan.`);
+                    return `"${translatedRoleName}" rolini o'chirib bo'lmaydi.`;
                 } else {
-                     handleApiError(data, `"${roleName}" rolini o'chirishda`);
+                     handleApiError(data, `"${translatedRoleName}" rolini o'chirishda`);
                      return `Rolni o'chirishda xatolik!`;
                 }
             }}
@@ -988,6 +1011,7 @@ export default function AdminDashboard() {
     const updateData = { name: editingRole.name.trim() };
     const roleId = editingRole.id;
     const roleName = updateData.name;
+    const translatedRoleName = translateRole(roleName); // Tarjima
 
     toast.promise(
       axios.put(`https://oshxonacopy.pythonanywhere.com/api/admin/roles/${roleId}/`, updateData, { headers })
@@ -996,7 +1020,7 @@ export default function AdminDashboard() {
             setShowEditRoleDialog(false);
             setEditingRole(null);
             refreshRoles();
-            return `Rol "${roleName}" muvaffaqiyatli yangilandi!`;
+            return `Rol "${translatedRoleName}" muvaffaqiyatli yangilandi!`;
           } else {
             throw new Error(`Rolni yangilashda kutilmagan javob: ${response.status}`);
           }
@@ -1900,7 +1924,9 @@ export default function AdminDashboard() {
                             <TableRow key={employee.id}>
                             <TableCell className="font-medium">{employee.first_name} {employee.last_name}</TableCell>
                             <TableCell className="hidden sm:table-cell">{employee.username || "N/A"}</TableCell>
-                            <TableCell className="hidden md:table-cell">{employee.role?.name || "N/A"}</TableCell>
+                            {/* --- O'ZGARTIRILGAN QISM (Xodimlar roli) --- */}
+                            <TableCell className="hidden md:table-cell">{translateRole(employee.role?.name)}</TableCell>
+                            {/* --- O'ZGARTIRILGAN QISM YAKUNI --- */}
                             <TableCell className="text-right">
                                 <Badge variant={employee.is_active ? "success" : "destructive"}>
                                 {employee.is_active ? "Faol" : "Faol emas"}
@@ -1972,7 +1998,9 @@ export default function AdminDashboard() {
                       {validRolesList.length > 0 ? (
                         validRolesList.map((role) => (
                             <TableRow key={role.id}>
-                            <TableCell className="font-medium">{role.name || "Noma'lum"}</TableCell>
+                            {/* --- O'ZGARTIRILGAN QISM (Rollar ro'yxati nomi) --- */}
+                            <TableCell className="font-medium">{translateRole(role.name)}</TableCell>
+                            {/* --- O'ZGARTIRILGAN QISM YAKUNI --- */}
                             <TableCell className="text-right">{role.employee_count ?? 0}</TableCell>
                             <TableCell className="text-right">
                                 <DropdownMenu>
@@ -2488,7 +2516,8 @@ export default function AdminDashboard() {
                 <SelectContent>
                   {validFetchedRoles.length > 0 ? validFetchedRoles.map((role) => (
                     <SelectItem key={role.id} value={role.id.toString()}>
-                      {role.name || "Noma'lum"}
+                      {/* --- Rol nomini tarjima qilish (Select ichida) --- */}
+                      {translateRole(role.name)}
                     </SelectItem>
                   )) : <SelectItem value="" disabled>Rollar topilmadi</SelectItem>}
                 </SelectContent>
@@ -2593,7 +2622,8 @@ export default function AdminDashboard() {
                   <SelectContent>
                     {validFetchedRoles.length > 0 ? validFetchedRoles.map((role) => (
                       <SelectItem key={role.id} value={role.id.toString()}>
-                        {role.name || "Noma'lum"}
+                         {/* --- Rol nomini tarjima qilish (Select ichida) --- */}
+                        {translateRole(role.name)}
                       </SelectItem>
                     )) : <SelectItem value="" disabled>Rollar topilmadi</SelectItem>}
                   </SelectContent>
@@ -2648,7 +2678,7 @@ export default function AdminDashboard() {
           <form onSubmit={(e) => { e.preventDefault(); handleAddRole(); }}>
               <DialogHeader>
                 <DialogTitle>Yangi rol qo'shish</DialogTitle>
-                <DialogDescription>Rol nomini kiriting.</DialogDescription>
+                <DialogDescription>Rol nomini kiriting (masalan: Oshpaz, Ofitsiant, Kassir).</DialogDescription>
               </DialogHeader>
               <div className="grid gap-4 py-4">
                 <div className="grid grid-cols-4 items-center gap-4">
@@ -2677,7 +2707,8 @@ export default function AdminDashboard() {
           <DialogHeader>
             <DialogTitle>Rolni o'chirishni tasdiqlang</DialogTitle>
             <DialogDescription>
-              Haqiqatan ham <strong>"{roleToDelete?.name || 'Noma\'lum'}"</strong> rolini o'chirishni xohlaysizmi? Bu amalni qaytarib bo'lmaydi.
+              {/* --- Rol nomini tarjima qilish (Dialog ichida) --- */}
+              Haqiqatan ham <strong>"{translateRole(roleToDelete?.name)}"</strong> rolini o'chirishni xohlaysizmi? Bu amalni qaytarib bo'lmaydi.
               {roleToDelete?.employee_count > 0 && (
                 <span className="block mt-2 text-red-600 dark:text-red-400 font-semibold">
                   Diqqat: Bu rolga {roleToDelete.employee_count} ta xodim biriktirilgan. Rolni o'chirish uchun avval xodimlarni boshqa rolga o'tkazing yoki xodimlarni o'chiring.
@@ -2981,7 +3012,8 @@ export default function AdminDashboard() {
                         {selectedOrderDetails.table && (<div><p className="text-xs text-muted-foreground">Stol</p><p className="text-sm font-medium">{selectedOrderDetails.table.name || 'Noma\'lum stol'}</p></div>)}
                         <div><p className="text-xs text-muted-foreground">Yaratilgan vaqt</p><p className="text-sm font-medium">{new Date(selectedOrderDetails.created_at).toLocaleString('uz-UZ', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</p></div>
                         <div><p className="text-xs text-muted-foreground">Yangilangan vaqt</p><p className="text-sm font-medium">{new Date(selectedOrderDetails.updated_at).toLocaleString('uz-UZ', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</p></div>
-                        {selectedOrderDetails.created_by && (<div><p className="text-xs text-muted-foreground">Xodim (Yaratgan)</p><p className="text-sm font-medium">{selectedOrderDetails.created_by.first_name || ''}{' '}{selectedOrderDetails.created_by.last_name || ''}{selectedOrderDetails.created_by.username ? ` (${selectedOrderDetails.created_by.username})` : ''}{selectedOrderDetails.created_by.role?.name ? ` [${selectedOrderDetails.created_by.role.name}]` : ''}</p></div>)}
+                        {/* --- Xodim rolini tarjima qilish (Order Details) --- */}
+                        {selectedOrderDetails.created_by && (<div><p className="text-xs text-muted-foreground">Xodim (Yaratgan)</p><p className="text-sm font-medium">{selectedOrderDetails.created_by.first_name || ''}{' '}{selectedOrderDetails.created_by.last_name || ''}{selectedOrderDetails.created_by.username ? ` (${selectedOrderDetails.created_by.username})` : ''}{selectedOrderDetails.created_by.role?.name ? ` [${translateRole(selectedOrderDetails.created_by.role.name)}]` : ''}</p></div>)}
                     </div>
 
                      {selectedOrderDetails.payment ? (<>
