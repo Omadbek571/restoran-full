@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { Clock, LogOut, ChevronDown, ChevronUp } from "lucide-react"
+import { Clock, LogOut, ChevronDown, ChevronUp, Bell } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -56,6 +56,11 @@ export default function KitchenPage() {
     ready: true,
     completed: true,
   })
+  // Bildirishnomalar uchun holatlar
+  const [notifications, setNotifications] = useState([]) // Bildirishnomalar ro'yxati
+  const [isNotificationsOpen, setIsNotificationsOpen] = useState(false) // Modal holati
+  const [notificationsLoading, setNotificationsLoading] = useState(false) // Yuklanish holati
+  const [notificationsError, setNotificationsError] = useState("") // Xato holati
 
   // Buyurtmalarni yuklash
   useEffect(() => {
@@ -91,6 +96,31 @@ export default function KitchenPage() {
       toast.info("Tizimga kirish uchun autentifikatsiya talab qilinadi")
     }
   }, [router])
+
+  // Bildirishnomalarni yuklash (GET /kitchen/unacknowledged-changes/)
+  useEffect(() => {
+    const fetchNotifications = async () => {
+      setNotificationsLoading(true)
+      setNotificationsError("")
+      try {
+        const response = await axios.get("https://oshxonacopy.pythonanywhere.com/api/kitchen/unacknowledged-changes/", {
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${localStorage.getItem("token")}`,
+          },
+        })
+        setNotifications(response.data || [])
+        setNotificationsLoading(false)
+      } catch (err) {
+        console.error("Bildirishnomalarni yuklashda xato:", err)
+        setNotificationsError("Bildirishnomalarni yuklashda xato yuz berdi")
+        toast.error("Bildirishnomalarni yuklashda xato yuz berdi")
+        setNotificationsLoading(false)
+      }
+    }
+
+    fetchNotifications()
+  }, [])
 
   // Buyurtmalarni holat bo'yicha filtrlash
   const filteredOrders = (status) => {
@@ -186,7 +216,55 @@ export default function KitchenPage() {
     }
   }
 
-  // Vaqtni formatlash funksiyasi
+  // Buyurtmani bekor qilish funksiyasi
+  const handleCancelOrder = async (orderId) => {
+    try {
+      await axios.post(
+        `https://oshxonacopy.pythonanywhere.com/api/orders/${orderId}/cancel_order/`,
+        {},
+        {
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem("token")}`,
+          },
+        }
+      )
+
+      setOrders((prevOrders) => prevOrders.filter((order) => order.id !== orderId))
+      toast.success(`Buyurtma #${orderId} bekor qilindi!`)
+    } catch (err) {
+      console.error("Buyurtma bekor qilishda xato:", err)
+      toast.error("Buyurtma bekor qilishda xato yuz berdi")
+    }
+  }
+
+  // Bildirishnomalarni tasdiqlash (POST /kitchen/acknowledge-changes/)
+  const handleAcknowledgeNotification = async (logId) => {
+    try {
+      await axios.post(
+        `https://oshxonacopy.pythonanywhere.com/api/kitchen/acknowledge-changes/`,
+        {
+          log_ids: [logId], // "data" qavssiz, faqat log_ids massivi yuboriladi
+        },
+        {
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${localStorage.getItem("token")}`,
+          },
+        }
+      )
+
+      // Bildirishnomani tasdiqlangan deb yangilash
+      setNotifications((prev) =>
+        prev.filter((notification) => notification.id !== logId)
+      )
+      toast.success(`Bildirishnoma #${logId} tasdiqlandi!`)
+    } catch (err) {
+      console.error("Bildirishnomani tasdiqlashda xato:", err)
+      toast.error("Bildirishnomani tasdiqlashda xato yuz berdi")
+    }
+  }
+
+  // Vaqtni formatlash furuksiyasi
   const formatTime = (dateString) => {
     try {
       if (!dateString) return "Vaqt ko'rsatilmagan"
@@ -282,7 +360,9 @@ export default function KitchenPage() {
   }
 
   // Buyurtma kartasi komponenti
-  const OrderCard = ({ order, actionButton }) => {
+  const OrderCard = ({ order, actionButton, isReadySection = false }) => {
+    const canCancel = order.status === "pending" || order.status === "new"
+
     return (
       <Card className="overflow-hidden">
         <CardHeader className="bg-muted/50 pb-2">
@@ -325,15 +405,26 @@ export default function KitchenPage() {
           </div>
         </CardHeader>
 
-        <CardFooter className="border-t p-2 flex justify-between">
-          {actionButton}
-          <Button
-            variant="outline"
-            onClick={() => handleViewDetails(order.id)}
-            className="ml-2"
-          >
-            Batafsil ko'rish
-          </Button>
+        <CardFooter className="border-t p-2">
+          <div className="flex flex-col space-y-2 w-full">
+            {actionButton}
+            <Button
+              variant="outline"
+              className={isReadySection ? "w-full" : ""}
+              onClick={() => handleViewDetails(order.id)}
+            >
+              Batafsil ko'rish
+            </Button>
+            {canCancel && (
+              <Button
+                variant="destructive"
+                className="w-full"
+                onClick={() => handleCancelOrder(order.id)}
+              >
+                Bekor qilish
+              </Button>
+            )}
+          </div>
         </CardFooter>
       </Card>
     )
@@ -423,6 +514,26 @@ export default function KitchenPage() {
               </div>
             </SelectContent>
           </Select>
+
+          {/* Bildirishnoma ikonkasi */}
+          <div className="relative">
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => setIsNotificationsOpen(true)}
+            >
+              <Bell className="h-5 w-5" />
+              {notifications.length > 0 && (
+                <Badge
+                  variant="destructive"
+                  className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center rounded-full text-xs"
+                >
+                  {notifications.length}
+                </Badge>
+              )}
+            </Button>
+          </div>
+
           <AlertDialog open={isLogoutOpen} onOpenChange={setIsLogoutOpen}>
             <AlertDialogTrigger asChild>
               <Button variant="outline" size="icon" onClick={handleLogout}>
@@ -441,6 +552,70 @@ export default function KitchenPage() {
           </AlertDialog>
         </div>
       </header>
+
+      {/* Bildirishnomalar modali */}
+      <AlertDialog open={isNotificationsOpen} onOpenChange={setIsNotificationsOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Bildirishnomalar</AlertDialogTitle>
+          </AlertDialogHeader>
+          <div className="max-h-[60vh] overflow-y-auto p-4">
+            {notificationsLoading ? (
+              <div className="flex items-center justify-center h-32">
+                Yuklanmoqda...
+              </div>
+            ) : notificationsError ? (
+              <div className="text-destructive">{notificationsError}</div>
+            ) : notifications.length === 0 ? (
+              <div className="flex items-center justify-center h-32 text-muted-foreground">
+                Bildirishnomalar yo'q
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {notifications.map((notification) => (
+                  <Card
+                    key={notification.id}
+                    className={`p-4 ${
+                      notification.quantity_change < 0 ? "bg-red-100 border-red-500" : ""
+                    }`} // Faqat quantity_change manfiy bo'lsa qizil rangda
+                  >
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <p className="font-medium">Buyurtma #{notification.order_id}</p>
+                        <p className="text-sm text-muted-foreground">
+                          {notification.change_type_display} -
+                          {notification.quantity_change !== null
+                            ? ` (Miqdor: ${notification.quantity_change > 0 ? "+" : ""}${notification.quantity_change})`
+                            : ""}
+                        </p>
+                        <p className="text-sm text-muted-foreground">
+                          Mahsulot: {notification.product_name}
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {formatTime(notification.timestamp)}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          Foydalanuvchi: {notification.user_name || "Noma'lum"}
+                        </p>
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleAcknowledgeNotification(notification.id)}
+                      >
+                        Tasdiqlash
+                      </Button>
+                    </div>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Yopish</AlertDialogCancel>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Batafsil ko'rish modali */}
       <AlertDialog open={isDetailsOpen} onOpenChange={setIsDetailsOpen}>
@@ -486,10 +661,21 @@ export default function KitchenPage() {
                     <ul className="mt-2 space-y-2">
                       {selectedOrderDetails.items.map((item) => (
                         <li key={item.id} className="border-b pb-2">
-                          <p>Taom: {item.product_details.name}</p>
-                          <p>Soni: {item.quantity}</p>
-                          <p>Birlik narxi: {item.unit_price} so'm</p>
-                          <p>Umumiy narx: {item.total_price} so'm</p>
+                          <div className="flex items-center space-x-4">
+                            {item.product_details.image_url && (
+                              <img
+                                src={item.product_details.image_url}
+                                alt={item.product_details.name}
+                                className="w-12 h-12 object-cover rounded"
+                              />
+                            )}
+                            <div>
+                              <p>Taom: {item.product_details.name}</p>
+                              <p>Soni: {item.quantity}</p>
+                              <p>Birlik narxi: {item.unit_price} so'm</p>
+                              <p>Umumiy narx: {item.total_price} so'm</p>
+                            </div>
+                          </div>
                         </li>
                       ))}
                     </ul>
@@ -565,7 +751,7 @@ export default function KitchenPage() {
                               order={order}
                               actionButton={
                                 <Button
-                                  className="w-full bg-yellow-600 hover:bg-yellow-700"
+                                  className="bg-yellow-600 hover:bg-yellow-700"
                                   onClick={() => handleStartPreparing(order.id)}
                                 >
                                   Tayyorlashni boshlash
@@ -653,6 +839,7 @@ export default function KitchenPage() {
                             <OrderCard
                               key={order.id}
                               order={order}
+                              isReadySection={true}
                               actionButton={
                                 <Button
                                   className="w-full bg-green-600 hover:bg-green-700"

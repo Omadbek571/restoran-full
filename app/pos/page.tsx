@@ -48,6 +48,8 @@ export default function POSPage() {
   const [customerInfo, setCustomerInfo] = useState({ name: "", phone: "", address: "" })
   const [showTableDialog, setShowTableDialog] = useState(false)
   const [showCustomerDialog, setShowCustomerDialog] = useState(false)
+  // --- YANGI: Stol Filter uchun State ---
+  const [selectedZoneFilter, setSelectedZoneFilter] = useState('all'); // 'all' yoki zona nomi
 
   // === Dialog Oynalari State'lari ===
   const [showLogoutDialog, setShowLogoutDialog] = useState(false)
@@ -114,6 +116,7 @@ export default function POSPage() {
         const handler = setTimeout(() => fetchOrderHistory(historySearchQuery), 300);
         return () => clearTimeout(handler);
     }
+     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showHistoryDialog, historySearchQuery]);
 
   // === Buyurtmani O'NG PANELDA tahrirlash uchun yuklash funksiyasi ===
@@ -213,16 +216,16 @@ export default function POSPage() {
               console.log(`Lokal miqdor oshirildi (+): Mahsulot ID ${product.id}`);
           } else {
               updatedItems.push({
-                  id: `temp-${Date.now()}-${product.id}`,
+                  id: `temp-${Date.now()}-${product.id}`, // Vaqtinchalik ID
                   product: product.id,
-                  product_details: {
+                  product_details: { // Mahsulot detallarini qo'shish
                       id: product.id,
                       name: product.name,
                       image_url: product.image,
                   },
                   quantity: 1,
-                  unit_price: product.price,
-                  total_price: product.price
+                  unit_price: product.price, // Narxni ham saqlash
+                  total_price: product.price // Umumiy narxni ham saqlash
               });
                console.log(`Lokal yangi qo'shildi: Mahsulot ID ${product.id}`);
           }
@@ -264,19 +267,32 @@ export default function POSPage() {
       const currentItem = currentItems.find((c) => c.product === originalItem.product);
       if (currentItem) {
         if (currentItem.quantity !== originalItem.quantity) {
-          operations.push({
-            operation: "set",
-            order_item_id: originalItem.id,
-            quantity: currentItem.quantity,
-          });
-          console.log(`Operatsiya (Set): OrderItemID ${originalItem.id}, Yangi miqdor ${currentItem.quantity}`);
+          // ID mavjudligini tekshirish
+          if (originalItem.id && typeof originalItem.id === 'number') {
+              operations.push({
+                operation: "set",
+                order_item_id: originalItem.id,
+                quantity: currentItem.quantity,
+              });
+              console.log(`Operatsiya (Set): OrderItemID ${originalItem.id}, Yangi miqdor ${currentItem.quantity}`);
+          } else {
+               console.warn(`Operatsiya (Set) uchun OrderItemID topilmadi yoki noto'g'ri: ${originalItem.id}, product_id: ${originalItem.product}`);
+               // Ehtimoliy xatolikni loglash yoki foydalanuvchiga xabar berish
+               toast.warn(`Mahsulot (${originalItem.product_details?.name || originalItem.product}) uchun o'zgarish saqlanmadi (ItemID xatosi).`);
+          }
         }
       } else {
-        operations.push({
-          operation: "remove",
-          order_item_id: originalItem.id,
-        });
-        console.log(`Operatsiya (Remove): OrderItemID ${originalItem.id}`);
+         // ID mavjudligini tekshirish
+         if (originalItem.id && typeof originalItem.id === 'number') {
+              operations.push({
+                operation: "remove",
+                order_item_id: originalItem.id,
+              });
+              console.log(`Operatsiya (Remove): OrderItemID ${originalItem.id}`);
+         } else {
+              console.warn(`Operatsiya (Remove) uchun OrderItemID topilmadi yoki noto'g'ri: ${originalItem.id}, product_id: ${originalItem.product}`);
+              toast.warn(`Mahsulot (${originalItem.product_details?.name || originalItem.product}) o'chirish saqlanmadi (ItemID xatosi).`);
+         }
       }
     });
 
@@ -315,7 +331,7 @@ export default function POSPage() {
     } catch (err) {
       console.error("API xatosi:", err.response || err);
       let errorMsg = "O'zgarishlarni saqlashda xato yuz berdi.";
-      
+
       if (err.response) {
         const { status, data } = err.response;
         if (status === 400) {
@@ -429,7 +445,7 @@ export default function POSPage() {
         // Cart'ni yangi buyurtma elementlari bilan to'ldirish
         const newCart = order.items.map((item) => ({
           id: item.product,
-          product: item.product_details,
+          product: item.product_details, // product_details ni saqlash kerak bo'lishi mumkin
           quantity: item.quantity,
         }));
         setCart(newCart);
@@ -441,8 +457,8 @@ export default function POSPage() {
 
         // Tarix dialogini yopish
         setShowHistoryDialog(false);
-        fetchTables();
-        if (showHistoryDialog) fetchOrderHistory(historySearchQuery);
+        fetchTables(); // Stollarni yangilash (holati o'zgargan bo'lishi mumkin)
+        if (showHistoryDialog) fetchOrderHistory(historySearchQuery); // Tarixni yangilash
       })
       .catch((err) => {
         console.error("Qayta buyurtma catch xato:", err.response || err);
@@ -456,17 +472,17 @@ export default function POSPage() {
 
   // === Yangi Buyurtma Yaratish Funksiyalari ===
   const addToCart = (product) => {
-     if (editingOrderId) return;
+     if (editingOrderId) return; // Tahrirlash rejimida savatga qo'shmaslik
      if (!product?.id) { toast.error("Mahsulot qo'shishda xatolik."); return; }
     setCart((prev) => {
         const exist = prev.find((i) => i.id === product.id);
         if (exist) return prev.map((i) => i.id === product.id ? { ...i, quantity: i.quantity + 1 } : i);
-        else return [...prev, { id: product.id, product: product, quantity: 1 }];
+        else return [...prev, { id: product.id, product: product, quantity: 1 }]; // Mahsulot ma'lumotini saqlash
     });
     toast.success(`${product.name} savatga qo'shildi!`);
   }
   const decreaseQuantity = (item) => {
-     if (editingOrderId) return;
+     if (editingOrderId) return; // Tahrirlash rejimida o'zgartirmaslik
      if (!item?.id) return;
     setCart((prev) => {
         const current = prev.find((i) => i.id === item.id);
@@ -479,12 +495,12 @@ export default function POSPage() {
     });
   }
   const increaseQuantity = (item) => {
-     if (editingOrderId) return;
+     if (editingOrderId) return; // Tahrirlash rejimida o'zgartirmaslik
      if (!item?.id) return;
     setCart((prev) => prev.map((i) => i.id === item.id ? { ...i, quantity: i.quantity + 1 } : i));
   }
   const submitOrder = () => {
-     if (editingOrderId) return;
+     if (editingOrderId) return; // Tahrirlash rejimida buyurtma bermaslik
     const token = getToken(); if (!token) { toast.error("Avtorizatsiya tokeni topilmadi!"); return; }
     if (cart.length === 0) { toast.warn("Savat bo‘sh!"); return; }
     if (orderType === "dine_in" && !selectedTable) { toast.warn("Stol tanlang!"); setShowTableDialog(true); return; }
@@ -509,8 +525,8 @@ export default function POSPage() {
        }
     ).then(() => {
         setCart([]); setCustomerInfo({ name: "", phone: "", address: "" }); setSelectedTable(null);
-        setShowCustomerDialog(false); setShowTableDialog(false); fetchTables();
-        if (showHistoryDialog) fetchOrderHistory(historySearchQuery);
+        setShowCustomerDialog(false); setShowTableDialog(false); fetchTables(); // Stollarni yangilash
+        if (showHistoryDialog) fetchOrderHistory(historySearchQuery); // Tarixni yangilash
       })
       .catch((err) => { console.error("Yangi buyurtma catch xato:", err.response || err); });
   }
@@ -529,9 +545,10 @@ export default function POSPage() {
       setIsEditLoading(false);
       setEditError(null);
       setSubmitEditError(null);
-      setCart([]);
+      setCart([]); // Savatni tozalash
+      // Agar tarix oynasi ochiq bo'lsa va ID mavjud bo'lsa, tarixni yangilash
       if (showHistoryDialog && previousId) {
-         setTimeout(() => fetchOrderHistory(historySearchQuery), 100);
+         setTimeout(() => fetchOrderHistory(historySearchQuery), 100); // Kichik kechikish bilan
       }
   }
 
@@ -554,7 +571,7 @@ export default function POSPage() {
   const filteredProducts = useMemo(() => {
     if (!Array.isArray(products)) return [];
     return products.filter((p) => {
-      if (!p.is_active) return false;
+      if (!p.is_active) return false; // Aktiv bo'lmaganlarni o'tkazib yuborish
       const nameMatch = p.name?.toLowerCase().includes(searchQuery.toLowerCase());
       const catMatch = selectedCategory === null || p.category?.id === selectedCategory;
       return nameMatch && catMatch;
@@ -573,13 +590,30 @@ export default function POSPage() {
 
   const currentPanelTotal = useMemo(() => {
       if (editingOrderId && orderToEdit?.items) {
-           return orderToEdit.items.reduce((sum, item) => sum + (Number(item.unit_price || 0) * item.quantity), 0);
+           // Tahrirlashda API'dan kelgan narxni ishlatish
+           return orderToEdit.items.reduce((sum, item) => sum + (Number(item.total_price || (item.unit_price * item.quantity)) || 0), 0);
       } else if (!editingOrderId) {
+          // Yangi buyurtmada lokal hisoblash
           return cart.reduce((total, item) => total + (parseFloat(item.product?.price) || 0) * item.quantity, 0);
       } else {
           return 0;
       }
   }, [editingOrderId, orderToEdit, cart]);
+
+  // --- YANGI: Unikal Zonalar ro'yxatini olish ---
+  const uniqueZones = useMemo(() => {
+    if (!Array.isArray(tables)) return [];
+    const zones = tables.map(t => t.zone || 'N/A'); // Agar zone null bo'lsa 'N/A' deb olamiz
+    // Unikal zonalar ro'yxatini yaratish va 'all' ni boshiga qo'shish
+    const uniqueSet = new Set(zones);
+    const sortedZones = Array.from(uniqueSet).sort((a, b) => {
+        if (a === 'N/A') return 1; // N/A ni oxiriga qo'yish
+        if (b === 'N/A') return -1;
+        return a.localeCompare(b); // Alfavit bo'yicha saralash
+    });
+    return ['all', ...sortedZones];
+  }, [tables]);
+
 
   // === UI QISMI (RETURN) ===
   return (
@@ -630,8 +664,8 @@ export default function POSPage() {
 
                 <div className="flex-1 flex justify-center px-4">
                     <Tabs
-                        value={editingOrderId ? '' : orderType}
-                        onValueChange={editingOrderId ? () => {} : setOrderType}
+                        value={editingOrderId ? '' : orderType} // Tahrirlashda qiymatni o'chirish
+                        onValueChange={editingOrderId ? () => {} : setOrderType} // Tahrirlashda o'zgartirishni bloklash
                         className={`w-full max-w-md ${editingOrderId ? 'opacity-50 cursor-not-allowed' : ''}`}
                     >
                         <TabsList className="grid w-full grid-cols-3 h-11">
@@ -733,7 +767,7 @@ export default function POSPage() {
                                             key={product.id}
                                             className={`cursor-pointer overflow-hidden transition-all hover:shadow-lg active:scale-95 flex flex-col rounded-lg border border-border bg-card text-card-foreground shadow-sm group ${isSubmittingEdit ? 'opacity-70 pointer-events-none' : ''}`}
                                             onClick={() => {
-                                                if (isSubmittingEdit) return;
+                                                if (isSubmittingEdit) return; // Saqlash jarayonida bosishni bloklash
 
                                                 if (editingOrderId) {
                                                     handleLocalAddItemFromProductList(product);
@@ -779,8 +813,9 @@ export default function POSPage() {
                             </h2>
                         </div>
                         <div className="flex items-center gap-2">
-                            {editingOrderId ? (
+                            {editingOrderId ? ( // Agar tahrirlash rejimi bo'lsa
                                 <>
+                                    {/* Stol va Mijoz Badge'lari (mavjud bo'lsa) */}
                                     {orderToEdit?.table && (
                                         <Tooltip>
                                             <TooltipTrigger asChild>
@@ -797,6 +832,7 @@ export default function POSPage() {
                                              <TooltipContent><p>{orderToEdit.customer_name}</p><p>{orderToEdit.customer_phone}</p>{orderToEdit.customer_address && <p>{orderToEdit.customer_address}</p>}</TooltipContent>
                                          </Tooltip>
                                     )}
+                                    {/* Tahrirlashni Bekor Qilish Tugmasi */}
                                     <Tooltip>
                                         <TooltipTrigger asChild>
                                             <Button variant="ghost" size="icon" onClick={cancelEditing} disabled={isSubmittingEdit || isEditLoading}>
@@ -806,8 +842,9 @@ export default function POSPage() {
                                         <TooltipContent><p>Tahrirlashni Bekor Qilish</p></TooltipContent>
                                     </Tooltip>
                                 </>
-                            ) : (
+                            ) : ( // Agar yangi buyurtma rejimi bo'lsa
                                 <>
+                                    {/* Stol Tanlash / O'zgartirish Tugmasi */}
                                     {orderType === "dine_in" && (
                                         <>
                                             {selectedTable && (
@@ -826,6 +863,7 @@ export default function POSPage() {
                                             </Button>
                                         </>
                                     )}
+                                    {/* Mijoz Ma'lumotlari Badge/Tugmasi */}
                                     {(orderType === 'takeaway' || orderType === 'delivery') && customerInfo.name && (
                                         <Tooltip>
                                             <TooltipTrigger asChild>
@@ -851,32 +889,33 @@ export default function POSPage() {
                     </div>
 
                     <ScrollArea className="flex-1 p-4">
-                         {isEditLoading ? (
+                         {isEditLoading ? ( // Buyurtma yuklanayotgan bo'lsa
                              <div className="flex h-full items-center justify-center text-muted-foreground">
                                  <Loader2 className="h-8 w-8 animate-spin mr-2" /> Buyurtma yuklanmoqda...
                              </div>
-                         ) : editError ? (
+                         ) : editError ? ( // Yuklashda xatolik bo'lsa
                              <div className="flex h-full flex-col items-center justify-center text-destructive p-4 text-center">
                                 <p className="mb-3">{editError}</p>
                                 <Button variant="outline" size="sm" onClick={()=>loadOrderForEditing(editingOrderId)} disabled={isEditLoading || isSubmittingEdit}>
                                     <RotateCcw className="mr-2 h-4 w-4"/> Qayta Urinish
                                 </Button>
                              </div>
-                         ) : currentPanelItems.length === 0 ? (
+                         ) : currentPanelItems.length === 0 ? ( // Agar savat/buyurtma bo'sh bo'lsa
                             <div className="flex h-full flex-col items-center justify-center text-center text-muted-foreground p-4">
                                  <ShoppingCart className="mb-4 h-16 w-16 text-gray-400" />
                                  <h3 className="text-lg font-semibold">{editingOrderId ? "Buyurtmada mahsulot yo'q" : "Savat bo‘sh"}</h3>
                                  <p className="text-sm mt-1">{editingOrderId ? "Chapdan mahsulot tanlab qo'shing" : "Yangi buyurtma uchun mahsulot tanlang"}</p>
                              </div>
-                        ) : (
+                        ) : ( // Aks holda mahsulotlarni ko'rsatish
                             <div className="space-y-3">
                                 {currentPanelItems.map((item) => {
+                                    // Mahsulot ma'lumotlarini aniqlash (tahrirlash yoki yangi buyurtma)
                                     const productInfo = editingOrderId ? item.product_details : item.product;
                                     const productName = productInfo?.name;
                                     const productImage = editingOrderId ? productInfo?.image_url : productInfo?.image;
                                     const unitPrice = editingOrderId ? item.unit_price : productInfo?.price;
                                     const productId = editingOrderId ? item.product : item.id;
-                                    const itemKey = editingOrderId ? (item.id || `item-${item.product}`) : item.id;
+                                    const itemKey = editingOrderId ? (item.id || `item-${item.product}`) : item.id; // Unikal key
 
                                     return (
                                         <div key={itemKey} className={`flex items-center justify-between space-x-2 border-b border-border pb-3 last:border-b-0 ${isSubmittingEdit ? 'opacity-70' : ''}`}>
@@ -927,6 +966,7 @@ export default function POSPage() {
                                 })}
                             </div>
                         )}
+                         {/* API dan qaytgan xatolikni ko'rsatish */}
                          {submitEditError && (
                              <p className="text-center text-destructive text-xs mt-4 p-2 bg-destructive/10 rounded">{submitEditError}</p>
                          )}
@@ -938,6 +978,7 @@ export default function POSPage() {
                                 <span className="text-muted-foreground">Jami (taxminiy):</span>
                                 <span className="font-semibold"> {currentPanelTotal.toLocaleString('uz-UZ')} so‘m </span>
                             </div>
+                            {/* Tahrirlash rejimida qo'shimcha ma'lumotlar */}
                             {editingOrderId && orderToEdit && (
                                 <>
                                     <div className="flex justify-between">
@@ -946,17 +987,19 @@ export default function POSPage() {
                                             {orderToEdit.status_display || orderToEdit.status}
                                         </Badge>
                                     </div>
+                                     {/* Foizlar */}
                                      {Number(orderToEdit.service_fee_percent || 0) > 0 && <div className="flex justify-between text-xs"><span className="text-muted-foreground">Xizmat haqi:</span><span>{orderToEdit.service_fee_percent}%</span></div>}
                                      {Number(orderToEdit.tax_percent || 0) > 0 && <div className="flex justify-between text-xs"><span className="text-muted-foreground">Soliq:</span><span>{orderToEdit.tax_percent}%</span></div>}
                                 </>
                             )}
                         </div>
+                        {/* Asosiy tugma (Saqlash yoki Buyurtma Berish) */}
                         {editingOrderId ? (
                             <Button
                                 className="w-full h-12 text-base font-semibold"
                                 size="lg"
-                                onClick={submitEditedOrderChanges}
-                                disabled={isSubmittingEdit || isEditLoading}
+                                onClick={submitEditedOrderChanges} // O'zgarishlarni API ga yuborish
+                                disabled={isSubmittingEdit || isEditLoading || currentPanelItems.length === 0} // Agar yuklanayotgan yoki item bo'lmasa bloklash
                                 variant="default"
                             >
                                 {isSubmittingEdit ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle className="mr-2 h-4 w-4" />}
@@ -966,8 +1009,9 @@ export default function POSPage() {
                             <Button
                                 className="w-full h-12 text-base font-semibold"
                                 size="lg"
+                                // Yangi buyurtma uchun validatsiya
                                 disabled={cart.length === 0 || isLoading || isEditLoading || isSubmittingEdit || (orderType === 'dine_in' && !selectedTable) || ((orderType === 'takeaway' || orderType === 'delivery') && (!customerInfo.name || !customerInfo.phone)) || (orderType === 'delivery' && !customerInfo.address)}
-                                onClick={submitOrder}
+                                onClick={submitOrder} // Yangi buyurtmani API ga yuborish
                             >
                                 Buyurtma Berish ({currentPanelTotal.toLocaleString('uz-UZ')} so‘m)
                             </Button>
@@ -983,29 +1027,64 @@ export default function POSPage() {
                         <DialogTitle>Stol tanlash</DialogTitle>
                         <DialogDescription>Yangi buyurtma uchun stol raqamini tanlang.</DialogDescription>
                     </DialogHeader>
-                    <div className="py-4">
+
+                    {/* --- YANGI: Zona Filtr Select --- */}
+                    <div className="mb-4 flex items-center gap-4 px-6 pt-4">
+                        <Label htmlFor="zone-filter-select" className="shrink-0 text-sm">Zona bo'yicha filtr:</Label>
+                        <Select value={selectedZoneFilter} onValueChange={setSelectedZoneFilter}>
+                            <SelectTrigger id="zone-filter-select" className="w-full sm:w-[200px]">
+                                <SelectValue placeholder="Zonani tanlang" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {uniqueZones.map(zone => (
+                                    <SelectItem key={zone} value={zone}>
+                                        {zone === 'all' ? 'Barcha zonalar' : zone === 'N/A' ? 'Zonasiz' : zone}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                    {/* --- Zona Filtr Select Tugadi --- */}
+
+                    <div className="px-6 pb-4">
                         {isLoadingTables ? (
                             <div className="flex justify-center items-center h-40">
                                 <Loader2 className="h-6 w-6 animate-spin text-primary" />
                                 <p className="text-muted-foreground ml-2">Stollar yuklanmoqda...</p>
                             </div>
-                        ) : tables.length === 0 ? (
-                            <p className="col-span-full text-center text-muted-foreground py-10">Stollar topilmadi.</p>
+                        ) : tables.filter(table => selectedZoneFilter === 'all' || (table.zone || 'N/A') === selectedZoneFilter).length === 0 ? (
+                            // --- XABAR FILTRGA MOSLASHTIRILDI ---
+                            <p className="col-span-full text-center text-muted-foreground py-10">
+                                {selectedZoneFilter === 'all' ? 'Stollar topilmadi.' : `"${selectedZoneFilter === 'N/A' ? 'Zonasiz' : selectedZoneFilter}" zonasi uchun stol topilmadi.`}
+                            </p>
                         ) : (
                             <ScrollArea className="max-h-[60vh] pr-3">
                                 <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-3 sm:gap-4 mt-4">
+                                    {/* --- STOLLAR FILTR BILAN CHIQARILADI --- */}
                                     {tables
-                                        .sort((a, b) => (parseInt(a.name) || a.name) > (parseInt(b.name) || b.name) ? 1 : -1)
+                                        .filter(table => selectedZoneFilter === 'all' || (table.zone || 'N/A') === selectedZoneFilter) // FILTRLASH
+                                        .sort((a, b) => { // Saralash (sonlar bo'yicha, keyin harflar bo'yicha)
+                                            const nameA = parseInt(a.name);
+                                            const nameB = parseInt(b.name);
+                                            if (!isNaN(nameA) && !isNaN(nameB)) return nameA - nameB;
+                                            return a.name.localeCompare(b.name);
+                                        })
                                         .map((table) => (
                                             <Button
                                                 key={table.id}
                                                 variant="outline"
+                                                // --- Stil o'zgarishsiz qoldirildi ---
                                                 className={`h-20 sm:h-24 flex flex-col justify-center items-center rounded-lg shadow-sm transition-all p-2 border-2 ${!table.is_available ? "bg-destructive/10 border-destructive/30 text-destructive cursor-not-allowed opacity-70 hover:bg-destructive/15" : selectedTable === table.id ? "bg-primary border-primary text-primary-foreground ring-2 ring-primary ring-offset-2" : "bg-green-100 border-green-300 hover:bg-green-200 dark:bg-green-900/30 dark:border-green-700 dark:hover:bg-green-800/30"}`}
                                                 onClick={() => {
+                                                     if (!table.is_available) {
+                                                         toast.warn(`Stol ${table.name} hozirda band.`);
+                                                         return;
+                                                     }
                                                     setSelectedTable(table.id);
                                                     setShowTableDialog(false);
                                                     toast.success(`Stol ${table.name} tanlandi`);
                                                 }}
+                                                disabled={!table.is_available} // Band stollarni bloklash
                                             >
                                                 <div className="text-center">
                                                     <div className="font-semibold text-base sm:text-lg">{table.name}</div>
@@ -1020,7 +1099,7 @@ export default function POSPage() {
                             </ScrollArea>
                         )}
                     </div>
-                    <DialogFooter>
+                    <DialogFooter className="px-6 pb-6">
                          <DialogClose asChild>
                              <Button variant="ghost">Bekor qilish</Button>
                          </DialogClose>
@@ -1102,16 +1181,16 @@ export default function POSPage() {
                 <DialogContent className="sm:max-w-xl md:max-w-3xl lg:max-w-5xl xl:max-w-7xl h-[90vh] flex flex-col">
                     <DialogHeader>
                         <DialogTitle>Buyurtmalar Tarixi</DialogTitle>
-                        <DialogDescription>O'tgan buyurtmalarni ko'rish va tahrirlash uchun ustiga bosing.</DialogDescription>
+                        <DialogDescription>O'tgan buyurtmalarni ko'rish va tahrirlash uchun ustiga bosing (tayyor yoki bekor qilinganlarni tahrirlab bo'lmaydi).</DialogDescription>
                     </DialogHeader>
                     <div className="px-6 py-2">
                         <div className="relative">
                             <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                            <Input 
-                                type="search" 
-                                placeholder="ID, mijoz, tel, stol bo'yicha qidirish..." 
-                                className="w-full rounded-lg bg-background pl-8" 
-                                value={historySearchQuery} 
+                            <Input
+                                type="search"
+                                placeholder="ID, mijoz, tel, stol bo'yicha qidirish..."
+                                className="w-full rounded-lg bg-background pl-8"
+                                value={historySearchQuery}
                                 onChange={(e) => setHistorySearchQuery(e.target.value)}
                             />
                         </div>
@@ -1137,52 +1216,58 @@ export default function POSPage() {
                                             key={order.id}
                                             className={`overflow-hidden shadow-sm hover:shadow-md transition-shadow relative ${order.status === 'completed' || order.status === 'cancelled' ? 'opacity-60' : 'cursor-pointer'}`}
                                             onClick={() => {
+                                                // Tahrirlashga ruxsat berilmagan holatlar
                                                 if (order.status === 'completed' || order.status === 'cancelled') {
                                                      toast.warn(`Bu buyurtma (${order.status_display}) holatida, tahrirlab bo'lmaydi.`);
                                                      return;
                                                 }
+                                                // Agar boshqa buyurtma yuklanayotgan yoki saqlanayotgan bo'lsa
                                                 if (isEditLoading || isSubmittingEdit) {
                                                     toast.info("Iltimos, avvalgi amal tugashini kuting.");
                                                     return;
                                                 }
-                                                loadOrderForEditing(order.id);
+                                                loadOrderForEditing(order.id); // Tahrirlash uchun yuklash
                                             }}
                                         >
                                             <CardContent className="p-4 grid grid-cols-1 sm:grid-cols-6 md:grid-cols-8 gap-x-4 gap-y-2 text-sm">
-                                                <div className="sm:col-span-2 md:col-span-2 space-y-1"> 
-                                                    <div className="font-medium">ID: <span className="text-primary font-semibold">{order.id}</span></div> 
-                                                    <div className="text-muted-foreground text-xs">{formatDateTime(order.created_at)}</div> 
+                                                {/* Buyurtma ID va Sana */}
+                                                <div className="sm:col-span-2 md:col-span-2 space-y-1">
+                                                    <div className="font-medium">ID: <span className="text-primary font-semibold">{order.id}</span></div>
+                                                    <div className="text-muted-foreground text-xs">{formatDateTime(order.created_at)}</div>
                                                 </div>
-                                                <div className="sm:col-span-2 md:col-span-2 space-y-1 flex flex-col items-start"> 
-                                                    <Badge variant="outline">{order.order_type_display || order.order_type}</Badge> 
-                                                    <Badge 
-                                                        variant={ 
-                                                            order.status === 'completed' ? 'success' : 
-                                                            order.status === 'pending' || order.status === 'ready' ? 'secondary' : 
-                                                            order.status === 'paid' ? 'default' : 
-                                                            order.status === 'cancelled' ? 'destructive' : 'outline' 
-                                                        } 
+                                                {/* Buyurtma Turi va Holati */}
+                                                <div className="sm:col-span-2 md:col-span-2 space-y-1 flex flex-col items-start">
+                                                    <Badge variant="outline">{order.order_type_display || order.order_type}</Badge>
+                                                    <Badge
+                                                        variant={
+                                                            order.status === 'completed' ? 'success' :
+                                                            order.status === 'pending' || order.status === 'ready' ? 'secondary' :
+                                                            order.status === 'paid' ? 'default' :
+                                                            order.status === 'cancelled' ? 'destructive' : 'outline'
+                                                        }
                                                         className="mt-1 capitalize"
-                                                    > 
-                                                        {order.status_display || order.status} 
-                                                    </Badge> 
+                                                    >
+                                                        {order.status_display || order.status}
+                                                    </Badge>
                                                 </div>
-                                                <div className="sm:col-span-2 md:col-span-2 space-y-1"> 
-                                                    {order.customer_name && <div className="truncate" title={order.customer_name}>Mijoz: <span className="font-medium">{order.customer_name}</span></div>} 
-                                                    {order.table_name && <div>Stol: <span className="font-medium">{order.table_name}</span></div>} 
-                                                    {order.customer_phone && <div className="text-xs text-muted-foreground">{order.customer_phone}</div>} 
+                                                {/* Mijoz/Stol Ma'lumotlari */}
+                                                <div className="sm:col-span-2 md:col-span-2 space-y-1">
+                                                    {order.customer_name && <div className="truncate" title={order.customer_name}>Mijoz: <span className="font-medium">{order.customer_name}</span></div>}
+                                                    {order.table_name && <div>Stol: <span className="font-medium">{order.table_name}</span>{order.table_zone && <span className='text-xs text-muted-foreground'> ({order.table_zone})</span>}</div>}
+                                                    {order.customer_phone && <div className="text-xs text-muted-foreground">{order.customer_phone}</div>}
                                                 </div>
-                                                <div className="sm:col-span-6 md:col-span-2 space-y-1 text-right sm:text-left md:text-right pt-2 sm:pt-0 md:pt-0"> 
-                                                    <div className="font-semibold text-base">{Number(order.final_price || 0).toLocaleString('uz-UZ')} so'm</div> 
-                                                    <div className="text-muted-foreground text-xs">{order.item_count || 'Noma\'lum'} ta mahsulot</div> 
-                                                    {/* YANGI: Qayta Buyurtma Berish Tugmasi */}
+                                                {/* Jami Summa va Mahsulot Soni */}
+                                                <div className="sm:col-span-6 md:col-span-2 space-y-1 text-right sm:text-left md:text-right pt-2 sm:pt-0 md:pt-0">
+                                                    <div className="font-semibold text-base">{Number(order.final_price || 0).toLocaleString('uz-UZ')} so'm</div>
+                                                    <div className="text-muted-foreground text-xs">{order.item_count || 'Noma\'lum'} ta mahsulot</div>
+                                                    {/* Qayta Buyurtma Berish Tugmasi (Faqat Tayyor uchun) */}
                                                     {order.status === 'completed' && (
                                                         <Button
                                                             variant="outline"
                                                             size="sm"
                                                             className="mt-2 text-xs"
                                                             onClick={(e) => {
-                                                                e.stopPropagation(); // Cardning o'ziga bosilganda tahrirlashga o'tishni oldini olish
+                                                                e.stopPropagation(); // Card bosilishini oldini olish
                                                                 reorderToSameTable(order);
                                                             }}
                                                         >
@@ -1191,6 +1276,7 @@ export default function POSPage() {
                                                     )}
                                                 </div>
                                             </CardContent>
+                                            {/* Yuklanish Indikatori (Agar shu buyurtma yuklanayotgan bo'lsa) */}
                                             {isEditLoading && editingOrderId === order.id && (
                                                 <div className="absolute inset-0 bg-background/50 flex items-center justify-center z-10">
                                                     <Loader2 className="h-6 w-6 animate-spin text-primary" />

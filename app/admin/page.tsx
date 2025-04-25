@@ -27,7 +27,9 @@ import {
   Printer,
   Package,
   Edit, // Tahrirlash uchun ikonka
-  LayoutGrid // Kategoriya uchun ikonka
+  LayoutGrid, // Kategoriya uchun ikonka
+  Trash2, // O'chirish uchun ikonka
+  Armchair // Stol uchun ikonka (YANGI)
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
@@ -56,6 +58,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { Switch } from "@/components/ui/switch" // YANGI: Stol holati uchun
 import axios from "axios"
 import { toast, ToastContainer } from 'react-toastify'
 import 'react-toastify/dist/ReactToastify.css'
@@ -227,6 +230,18 @@ export default function AdminDashboard() {
   const [isUpdatingCategory, setIsUpdatingCategory] = useState(false);
   const [isDeletingCategory, setIsDeletingCategory] = useState(false); // Delete loading state
   // --- Kategoriya State'lari Yakuni ---
+  // --- YANGI: Stollar uchun State'lar ---
+  const [tables, setTables] = useState([]); // Stollar ro'yxati
+  const [showAddTableDialog, setShowAddTableDialog] = useState(false); // Qo'shish dialogi
+  const [showEditTableDialog, setShowEditTableDialog] = useState(false); // Tahrirlash dialogi
+  const [showDeleteTableConfirmDialog, setShowDeleteTableConfirmDialog] = useState(false); // O'chirishni tasdiqlash dialogi
+  const [newTable, setNewTable] = useState({ name: "", zone: "", is_available: true }); // Yangi stol formasi
+  const [editingTable, setEditingTable] = useState(null); // Tahrirlanayotgan stol ma'lumotlari ({ id: null, name: "", zone: "", is_available: true })
+  const [tableToDelete, setTableToDelete] = useState(null); // O'chiriladigan stol ({ id: null, name: "" })
+  const [isAddingTable, setIsAddingTable] = useState(false); // Stol qo'shish jarayoni
+  const [isUpdatingTable, setIsUpdatingTable] = useState(false); // Stol yangilash jarayoni
+  const [isDeletingTable, setIsDeletingTable] = useState(false); // Stol o'chirish jarayoni
+  // --- Stollar State'lari Yakuni ---
 
   // Data States
   const [stats, setStats] = useState({ todays_sales: { value: 0, change_percent: 0, comparison_period: "N/A" }, todays_orders: { value: 0, change_percent: 0, comparison_period: "N/A" }, average_check: { value: 0, change_percent: 0, comparison_period: "N/A" }, active_employees: { value: 0, change_absolute: 0, comparison_period: "N/A" } });
@@ -289,9 +304,13 @@ export default function AdminDashboard() {
           } else if (Array.isArray(data)) {
             errorDetail = data.map(err => typeof err === 'string' ? err : (err.field ? `${err.field}: ${err.message}` : JSON.stringify(err))).join('; ');
           } else {
-            // Kategoriya xatoliklarini aniqroq ko'rsatish
+            // Kategoriya va Stol xatoliklarini aniqroq ko'rsatish
             if (contextMessage.toLowerCase().includes('kategoriya') && data.name && Array.isArray(data.name)) {
                 errorDetail = `Kategoriya nomi: ${data.name.join(', ')}`;
+            } else if (contextMessage.toLowerCase().includes('stol') && data.name && Array.isArray(data.name)) {
+                errorDetail = `Stol nomi: ${data.name.join(', ')}`;
+            } else if (contextMessage.toLowerCase().includes('stol') && data.zone && Array.isArray(data.zone)) {
+                 errorDetail = `Stol zonasi: ${data.zone.join(', ')}`;
             } else {
                 errorDetail = Object.entries(data).map(([key, value]) => `${key}: ${Array.isArray(value) ? value.join(', ') : value}`).join('; ');
             }
@@ -342,64 +361,83 @@ export default function AdminDashboard() {
 
     let isMounted = true;
 
-    const fetchData = async () => {
+    // YANGI: fetchTables funksiyasi
+    const fetchTables = async () => {
         try {
-            // categoriesRes allaqachon olinayotgan edi, shu yerda ishlatamiz
-            const [
-                ordersRes, statsRes, usersRes, rolesRes, empReportRes,
-                prodReportRes, productsRes, categoriesRes, custReportRes,
-                chartsRes, salesChartRes
-            ] = await Promise.all([
-                axios.get(`https://oshxonacopy.pythonanywhere.com/api/orders/`, { headers }),
-                axios.get(`https://oshxonacopy.pythonanywhere.com/api/admin/dashboard/stats/`, { headers }),
-                axios.get(`https://oshxonacopy.pythonanywhere.com/api/admin/users/`, { headers }),
-                axios.get(`https://oshxonacopy.pythonanywhere.com/api/admin/roles/`, { headers }),
-                axios.get(`https://oshxonacopy.pythonanywhere.com/api/admin/reports/employees/`, { headers }),
-                axios.get(`https://oshxonacopy.pythonanywhere.com/api/admin/reports/products/`, { headers }),
-                axios.get(`https://oshxonacopy.pythonanywhere.com/api/products/`, { headers }),
-                axios.get(`https://oshxonacopy.pythonanywhere.com/api/categories/`, { headers }), // BU YERDA OLINADI
-                axios.get(`https://oshxonacopy.pythonanywhere.com/api/admin/reports/customers/`, { headers }),
-                axios.get(`https://oshxonacopy.pythonanywhere.com/api/admin/reports/charts/`, { headers }),
-                axios.get(`https://oshxonacopy.pythonanywhere.com/api/admin/dashboard/sales-chart/`, { headers })
-            ]);
-
-            if (!isMounted) return;
-
-            const ordersData = ordersRes.data ?? [];
-            const sortedOrders = ordersData.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-            setRecentOrders(sortedOrders.slice(0, 5));
-            setOrders(sortedOrders);
-
-            const defaultStats = { todays_sales: { value: 0, change_percent: 0, comparison_period: "N/A" }, todays_orders: { value: 0, change_percent: 0, comparison_period: "N/A" }, average_check: { value: 0, change_percent: 0, comparison_period: "N/A" }, active_employees: { value: 0, change_absolute: 0, comparison_period: "N/A" }};
-            const receivedStats = statsRes.data || {};
-            setStats({ todays_sales: receivedStats.todays_sales ?? defaultStats.todays_sales, todays_orders: receivedStats.todays_orders ?? defaultStats.todays_orders, average_check: receivedStats.average_check ?? defaultStats.average_check, active_employees: receivedStats.active_employees ?? defaultStats.active_employees });
-
-            setXodim(usersRes.data ?? []);
-            const rolesData = rolesRes.data ?? [];
-            setRolesList(rolesData);
-            setFetchedRoles(rolesData);
-            setEmployeeReport(empReportRes.data ?? []);
-            setProductReportData(prodReportRes.data ?? []);
-            setCustomerReport(custReportRes.data ?? []);
-            setProducts(productsRes.data ?? []);
-            setCategories(categoriesRes.data ?? []); // Kategoriyalarni state'ga o'rnatish
-            setPaymentMethods(chartsRes.data?.payment_methods || []);
-            setOrderTypes(chartsRes.data?.order_types || []);
-            setSalesData(salesChartRes.data ?? []);
-
+            const res = await axios.get(`https://oshxonacopy.pythonanywhere.com/api/tables/`, { headers });
+            if (isMounted) setTables(res.data ?? []);
         } catch (err) {
             if (isMounted) {
-                handleApiError(err, "Asosiy ma'lumotlarni yuklashda");
-                 // Reset states on error
-                setRecentOrders([]); setOrders([]);
-                setStats({ todays_sales: { value: 0, change_percent: 0, comparison_period: "N/A" }, todays_orders: { value: 0, change_percent: 0, comparison_period: "N/A" }, average_check: { value: 0, change_percent: 0, comparison_period: "N/A" }, active_employees: { value: 0, change_absolute: 0, comparison_period: "N/A" }});
-                setXodim([]); setRolesList([]); setFetchedRoles([]);
-                setEmployeeReport([]); setProductReportData([]); setCustomerReport([]);
-                setProducts([]); setCategories([]); // Reset categories on error
-                setPaymentMethods([]); setOrderTypes([]);
-                setSalesData([]);
+                handleApiError(err, "Stollarni yuklashda");
+                setTables([]);
             }
         }
+    };
+
+    const fetchData = async () => {
+        // Boshqa ma'lumotlarni yuklash
+        const fetchOtherData = async () => {
+           try {
+                const [
+                    ordersRes, statsRes, usersRes, rolesRes, empReportRes,
+                    prodReportRes, productsRes, categoriesRes, custReportRes,
+                    chartsRes, salesChartRes
+                ] = await Promise.all([
+                    axios.get(`https://oshxonacopy.pythonanywhere.com/api/orders/`, { headers }),
+                    axios.get(`https://oshxonacopy.pythonanywhere.com/api/admin/dashboard/stats/`, { headers }),
+                    axios.get(`https://oshxonacopy.pythonanywhere.com/api/admin/users/`, { headers }),
+                    axios.get(`https://oshxonacopy.pythonanywhere.com/api/admin/roles/`, { headers }),
+                    axios.get(`https://oshxonacopy.pythonanywhere.com/api/admin/reports/employees/`, { headers }),
+                    axios.get(`https://oshxonacopy.pythonanywhere.com/api/admin/reports/products/`, { headers }),
+                    axios.get(`https://oshxonacopy.pythonanywhere.com/api/products/`, { headers }),
+                    axios.get(`https://oshxonacopy.pythonanywhere.com/api/categories/`, { headers }),
+                    axios.get(`https://oshxonacopy.pythonanywhere.com/api/admin/reports/customers/`, { headers }),
+                    axios.get(`https://oshxonacopy.pythonanywhere.com/api/admin/reports/charts/`, { headers }),
+                    axios.get(`https://oshxonacopy.pythonanywhere.com/api/admin/dashboard/sales-chart/`, { headers })
+                ]);
+
+                if (!isMounted) return;
+
+                const ordersData = ordersRes.data ?? [];
+                const sortedOrders = ordersData.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+                setRecentOrders(sortedOrders.slice(0, 5));
+                setOrders(sortedOrders);
+
+                const defaultStats = { todays_sales: { value: 0, change_percent: 0, comparison_period: "N/A" }, todays_orders: { value: 0, change_percent: 0, comparison_period: "N/A" }, average_check: { value: 0, change_percent: 0, comparison_period: "N/A" }, active_employees: { value: 0, change_absolute: 0, comparison_period: "N/A" }};
+                const receivedStats = statsRes.data || {};
+                setStats({ todays_sales: receivedStats.todays_sales ?? defaultStats.todays_sales, todays_orders: receivedStats.todays_orders ?? defaultStats.todays_orders, average_check: receivedStats.average_check ?? defaultStats.average_check, active_employees: receivedStats.active_employees ?? defaultStats.active_employees });
+
+                setXodim(usersRes.data ?? []);
+                const rolesData = rolesRes.data ?? [];
+                setRolesList(rolesData);
+                setFetchedRoles(rolesData);
+                setEmployeeReport(empReportRes.data ?? []);
+                setProductReportData(prodReportRes.data ?? []);
+                setCustomerReport(custReportRes.data ?? []);
+                setProducts(productsRes.data ?? []);
+                setCategories(categoriesRes.data ?? []);
+                setPaymentMethods(chartsRes.data?.payment_methods || []);
+                setOrderTypes(chartsRes.data?.order_types || []);
+                setSalesData(salesChartRes.data ?? []);
+
+           } catch (err) {
+                if (isMounted) {
+                   handleApiError(err, "Asosiy ma'lumotlarni yuklashda");
+                   // Reset states on error
+                   setRecentOrders([]); setOrders([]);
+                   setStats({ todays_sales: { value: 0, change_percent: 0, comparison_period: "N/A" }, todays_orders: { value: 0, change_percent: 0, comparison_period: "N/A" }, average_check: { value: 0, change_percent: 0, comparison_period: "N/A" }, active_employees: { value: 0, change_absolute: 0, comparison_period: "N/A" }});
+                   setXodim([]); setRolesList([]); setFetchedRoles([]);
+                   setEmployeeReport([]); setProductReportData([]); setCustomerReport([]);
+                   setProducts([]); setCategories([]);
+                   setPaymentMethods([]); setOrderTypes([]);
+                   setSalesData([]);
+                }
+           }
+        }
+
+        // Barcha ma'lumotlarni parallel yuklash
+        await Promise.all([fetchOtherData(), fetchTables()]);
+
     }; // fetchData tugadi
 
     fetchData();
@@ -529,6 +567,22 @@ export default function AdminDashboard() {
         setCategories([]); // Xatolik bo'lsa tozalash
     });
   }; // refreshCategories tugadi
+
+  // --- YANGI: Stollarni yangilash funksiyasi ---
+  const refreshTables = () => {
+    const headers = getAuthHeader(router);
+    if (!headers) return;
+    toast.promise(
+      axios.get(`https://oshxonacopy.pythonanywhere.com/api/tables/`, { headers })
+        .then((res) => {
+          setTables(res.data ?? []);
+        }),
+      { pending: 'Stollar yangilanmoqda...', success: 'Stollar ro\'yxati yangilandi!', error: 'Stollarni yangilashda xatolik!' }
+    ).catch(err => {
+        handleApiError(err, "Stollarni yangilashda");
+        setTables([]); // Xatolik bo'lsa tozalash
+    });
+  }; // refreshTables tugadi
 
   // --- Action Handlers ---
 
@@ -1294,6 +1348,170 @@ export default function AdminDashboard() {
   }; // confirmDeleteCategory tugadi
   // --- Kategoriya Action Handlers Yakuni ---
 
+  // --- YANGI: Stollar Action Handlers ---
+  const handleAddTable = async () => {
+    if (!newTable.name || newTable.name.trim() === "") {
+      toast.error("Iltimos, stol nomini/raqamini kiriting.");
+      return;
+    }
+    if (newTable.name.trim().length < 1 || newTable.name.trim().length > 50) {
+       toast.error("Stol nomi 1 dan 50 gacha belgidan iborat bo'lishi kerak.");
+       return;
+    }
+    if (newTable.zone && newTable.zone.trim().length > 50) {
+        toast.error("Zona nomi 50 belgidan oshmasligi kerak.");
+        return;
+    }
+
+    const headers = getAuthHeader(router);
+    if (!headers) return;
+
+    // Nullable bo'lishi mumkin bo'lgan 'zone' ni to'g'ri yuborish
+    const tableData = {
+        name: newTable.name.trim(),
+        zone: newTable.zone?.trim() || null, // Agar bo'sh bo'lsa null yuborish
+        is_available: newTable.is_available,
+    };
+    setIsAddingTable(true);
+
+    toast.promise(
+        axios.post("https://oshxonacopy.pythonanywhere.com/api/tables/", tableData, { headers })
+            .then(response => {
+                if (response.status === 201) {
+                    setNewTable({ name: "", zone: "", is_available: true });
+                    setShowAddTableDialog(false);
+                    refreshTables(); // Stollar ro'yxatini yangilash
+                    return `Stol "${tableData.name}" muvaffaqiyatli qo'shildi!`;
+                } else {
+                    throw new Error(`Stol qo'shishda kutilmagan javob: ${response.status}`);
+                }
+            }),
+        {
+            pending: 'Stol qo\'shilmoqda...',
+            success: { render({ data }) { return data; } },
+            error: { render({ data }) { handleApiError(data, "Stol qo'shishda"); return "Stol qo'shishda xatolik!"; } }
+        }
+    ).finally(() => {
+        setIsAddingTable(false);
+    });
+  }; // handleAddTable tugadi
+
+  const handleEditTableClick = (table) => {
+      if (!table || !table.id) {
+          toast.error("Stolni tahrirlash uchun ID topilmadi.");
+          return;
+      }
+      setEditingTable({
+          id: table.id,
+          name: table.name || '',
+          zone: table.zone || '', // API null qaytarsa ham '' ga o'tkazish
+          is_available: table.is_available ?? true // Default true agar kelmasa
+      });
+      setShowEditTableDialog(true);
+  }; // handleEditTableClick tugadi
+
+  const handleUpdateTable = async () => {
+    if (!editingTable || !editingTable.id) {
+        toast.error("Tahrirlanayotgan stol ma'lumotlari topilmadi.");
+        return;
+    }
+    if (!editingTable.name || editingTable.name.trim() === "") {
+      toast.error("Iltimos, stol nomini/raqamini kiriting.");
+      return;
+    }
+     if (editingTable.name.trim().length < 1 || editingTable.name.trim().length > 50) {
+       toast.error("Stol nomi 1 dan 50 gacha belgidan iborat bo'lishi kerak.");
+       return;
+    }
+    if (editingTable.zone && editingTable.zone.trim().length > 50) {
+        toast.error("Zona nomi 50 belgidan oshmasligi kerak.");
+        return;
+    }
+
+    const headers = getAuthHeader(router);
+    if (!headers) return;
+
+    const updateData = {
+        name: editingTable.name.trim(),
+        zone: editingTable.zone?.trim() || null,
+        is_available: editingTable.is_available,
+    };
+    const tableId = editingTable.id;
+    const tableName = updateData.name;
+    setIsUpdatingTable(true);
+
+    toast.promise(
+      axios.put(`https://oshxonacopy.pythonanywhere.com/api/tables/${tableId}/`, updateData, { headers })
+        .then(response => {
+          if (response.status === 200) {
+            setShowEditTableDialog(false);
+            setEditingTable(null);
+            refreshTables(); // Stollar ro'yxatini yangilash
+            return `Stol "${tableName}" muvaffaqiyatli yangilandi!`;
+          } else {
+            throw new Error(`Stolni yangilashda kutilmagan javob: ${response.status}`);
+          }
+        }),
+      {
+        pending: 'Stol yangilanmoqda...',
+        success: { render({ data }) { return data; } },
+        error: { render({ data }) { handleApiError(data, `Stol #${tableId} ni yangilashda`); return "Stolni yangilashda xatolik!"; }}
+      }
+    ).finally(() => {
+        setIsUpdatingTable(false);
+    });
+  }; // handleUpdateTable tugadi
+
+  const handleDeleteTableClick = (table) => {
+      if (!table || !table.id) {
+          toast.error("Stolni o'chirish uchun ID topilmadi.");
+          return;
+      }
+      setTableToDelete({ id: table.id, name: table.name });
+      setShowDeleteTableConfirmDialog(true);
+  }; // handleDeleteTableClick tugadi
+
+  const confirmDeleteTable = async () => {
+    if (!tableToDelete || !tableToDelete.id) return;
+
+    const headers = getAuthHeader(router);
+    if (!headers) return;
+
+    const tableId = tableToDelete.id;
+    const tableName = tableToDelete.name;
+    setIsDeletingTable(true);
+
+    toast.promise(
+        axios.delete(
+            `https://oshxonacopy.pythonanywhere.com/api/tables/${tableId}/`,
+            { headers }
+        ).then(response => {
+            if (response.status === 204) {
+                refreshTables(); // Stollar ro'yxatini yangilash
+                return `Stol "${tableName}" (ID: ${tableId}) muvaffaqiyatli o'chirildi!`;
+            } else {
+                throw new Error(`Stolni o'chirishda kutilmagan javob: ${response.status}`);
+            }
+        }),
+        {
+            pending: 'Stol o\'chirilmoqda...',
+            success: { render({ data }) { return data; } },
+            error: { render({ data }) {
+                 // Backend'dan kelishi mumkin bo'lgan maxsus xatoliklarni ushlash (agar mavjud bo'lsa)
+                 // Masalan, stol band bo'lsa yoki buyurtma bog'langan bo'lsa
+                 // if (data.response?.status === 400) { ... }
+                 handleApiError(data, `Stol "${tableName}" (ID: ${tableId}) ni o'chirishda`);
+                 return `Stolni o'chirishda xatolik!`;
+            }}
+        }
+    ).finally(() => {
+        setShowDeleteTableConfirmDialog(false);
+        setTableToDelete(null);
+        setIsDeletingTable(false);
+    });
+  }; // confirmDeleteTable tugadi
+  // --- Stollar Action Handlers Yakuni ---
+
 
   // --- Rendering Logic ---
 
@@ -1313,6 +1531,7 @@ export default function AdminDashboard() {
   const validCategories = safeArray(categories); // Bu endi ishlatiladi
   const validProductReportData = safeArray(productReportData);
   const validCustomerReport = safeArray(customerReport);
+  const validTables = safeArray(tables); // YANGI: Stollar uchun
 
   // Loading state or redirect if not authenticated
   if (!isClient || !token) {
@@ -1353,9 +1572,10 @@ export default function AdminDashboard() {
               <Button variant={activeTab === "roles" ? "secondary" : "ghost"} className={`w-full justify-start ${activeTab === 'roles' ? 'bg-slate-700 dark:bg-slate-600 text-white' : 'hover:bg-slate-700/50 dark:hover:bg-slate-700 text-slate-300 hover:text-white'}`} onClick={() => setActiveTab("roles")}><Sliders className="mr-2 h-4 w-4" />Rollar</Button>
               <Button variant={activeTab === "orders" ? "secondary" : "ghost"} className={`w-full justify-start ${activeTab === 'orders' ? 'bg-slate-700 dark:bg-slate-600 text-white' : 'hover:bg-slate-700/50 dark:hover:bg-slate-700 text-slate-300 hover:text-white'}`} onClick={() => setActiveTab("orders")}><ShoppingCart className="mr-2 h-4 w-4" />Buyurtmalar</Button>
               <Button variant={activeTab === "products" ? "secondary" : "ghost"} className={`w-full justify-start ${activeTab === 'products' ? 'bg-slate-700 dark:bg-slate-600 text-white' : 'hover:bg-slate-700/50 dark:hover:bg-slate-700 text-slate-300 hover:text-white'}`} onClick={() => setActiveTab("products")}><Package className="mr-2 h-4 w-4" />Mahsulotlar</Button>
-              {/* --- YANGI: Kategoriya menyusi --- */}
               <Button variant={activeTab === "categories" ? "secondary" : "ghost"} className={`w-full justify-start ${activeTab === 'categories' ? 'bg-slate-700 dark:bg-slate-600 text-white' : 'hover:bg-slate-700/50 dark:hover:bg-slate-700 text-slate-300 hover:text-white'}`} onClick={() => setActiveTab("categories")}><LayoutGrid className="mr-2 h-4 w-4" />Kategoriyalar</Button>
-              {/* --- Kategoriya menyusi yakuni --- */}
+              {/* --- YANGI: Stollar menyusi --- */}
+              <Button variant={activeTab === "tables" ? "secondary" : "ghost"} className={`w-full justify-start ${activeTab === 'tables' ? 'bg-slate-700 dark:bg-slate-600 text-white' : 'hover:bg-slate-700/50 dark:hover:bg-slate-700 text-slate-300 hover:text-white'}`} onClick={() => setActiveTab("tables")}><Armchair className="mr-2 h-4 w-4" />Stollar</Button>
+              {/* --- Stollar menyusi yakuni --- */}
             </div>
             <h2 className="mb-2 mt-6 px-4 text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">Tizim</h2>
             <div className="space-y-1">
@@ -1393,7 +1613,8 @@ export default function AdminDashboard() {
                     { name: 'roles', label: 'Rollar', icon: Sliders },
                     { name: 'orders', label: 'Buyurtmalar', icon: ShoppingCart },
                     { name: 'products', label: 'Mahsulotlar', icon: Package },
-                    { name: 'categories', label: 'Kategoriyalar', icon: LayoutGrid }, // --- YANGI: Kategoriya mobil menyusi ---
+                    { name: 'categories', label: 'Kategoriyalar', icon: LayoutGrid },
+                    { name: 'tables', label: 'Stollar', icon: Armchair }, // --- YANGI: Stollar mobil menyusi ---
                   ].map(item => (
                     <Button key={item.name} variant={activeTab === item.name ? "secondary" : "ghost"} className={`w-full justify-start ${activeTab === item.name ? 'bg-slate-700 dark:bg-slate-600 text-white' : 'hover:bg-slate-700/50 dark:hover:bg-slate-700 text-slate-300 hover:text-white'}`} onClick={() => { setActiveTab(item.name); setShowMobileSidebar(false) }}><item.icon className="mr-2 h-4 w-4" />{item.label}</Button>
                   ))}
@@ -1867,7 +2088,7 @@ export default function AdminDashboard() {
                                     </DropdownMenuItem>
                                     {/* === MAHSULOT TAHRIRLASH BANDI YAKUNI === */}
                                     <DropdownMenuItem onClick={() => handleDeleteProduct(product)} className="text-red-600 focus:text-red-700 focus:bg-red-100 dark:focus:bg-red-900/50 dark:focus:text-red-400">
-                                    O'chirish
+                                       <Trash2 className="mr-2 h-4 w-4"/> O'chirish {/* YANGI: Ikonka */}
                                     </DropdownMenuItem>
                                 </DropdownMenuContent>
                                 </DropdownMenu>
@@ -1945,7 +2166,7 @@ export default function AdminDashboard() {
                                       <Edit className="mr-2 h-4 w-4" /> Tahrirlash
                                     </DropdownMenuItem>
                                     <DropdownMenuItem onClick={() => handleDeleteEmployee(employee)} className="text-red-600 focus:text-red-700 focus:bg-red-100 dark:focus:bg-red-900/50 dark:focus:text-red-400">
-                                    O'chirish
+                                      <Trash2 className="mr-2 h-4 w-4"/> O'chirish {/* YANGI: Ikonka */}
                                     </DropdownMenuItem>
                                 </DropdownMenuContent>
                                 </DropdownMenu>
@@ -2015,7 +2236,7 @@ export default function AdminDashboard() {
                                       <Edit className="mr-2 h-4 w-4" /> Tahrirlash
                                     </DropdownMenuItem>
                                     <DropdownMenuItem onClick={() => handleDeleteRole(role)} className="text-red-600 focus:text-red-700 focus:bg-red-100 dark:focus:bg-red-900/50 dark:focus:text-red-400" disabled={role.employee_count > 0 || (role.count && role.count > 0)}>
-                                    O'chirish
+                                      <Trash2 className="mr-2 h-4 w-4"/> O'chirish {/* YANGI: Ikonka */}
                                     </DropdownMenuItem>
                                 </DropdownMenuContent>
                                 </DropdownMenu>
@@ -2086,7 +2307,7 @@ export default function AdminDashboard() {
                                       <Edit className="mr-2 h-4 w-4" /> Tahrirlash
                                     </DropdownMenuItem>
                                     <DropdownMenuItem onClick={() => handleDeleteCategoryClick(category)} className="text-red-600 focus:text-red-700 focus:bg-red-100 dark:focus:bg-red-900/50 dark:focus:text-red-400">
-                                      O'chirish
+                                      <Trash2 className="mr-2 h-4 w-4"/> O'chirish {/* YANGI: Ikonka */}
                                     </DropdownMenuItem>
                                 </DropdownMenuContent>
                                 </DropdownMenu>
@@ -2107,6 +2328,83 @@ export default function AdminDashboard() {
             </div>
           )}
           {/* --- Kategoriyalar Tab Yakuni --- */}
+
+          {/* --- YANGI: Stollar Tab --- */}
+          {activeTab === "tables" && (
+            <div className="space-y-6">
+              <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
+                <h2 className="text-2xl font-bold tracking-tight">Stollar</h2>
+                 <div className="flex gap-2">
+                    <Button variant="ghost" onClick={refreshTables}>
+                      <Paperclip className="mr-2 h-4 w-4" /> Yangilash
+                    </Button>
+                    <Button onClick={() => setShowAddTableDialog(true)}>
+                      <Plus className="mr-2 h-4 w-4" /> Yangi stol qo'shish
+                    </Button>
+                 </div>
+              </div>
+              <Card>
+                <CardHeader>
+                  <CardTitle>Stollar ro'yxati</CardTitle>
+                  <CardDescription>Restorandagi barcha stollar va ularning holati.</CardDescription>
+                </CardHeader>
+                <CardContent className="p-0">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-[80px]">ID</TableHead>
+                        <TableHead>Nomi/Raqami</TableHead>
+                        <TableHead className="hidden sm:table-cell">Zona</TableHead>
+                        <TableHead className="text-right">Holati</TableHead>
+                        <TableHead className="text-right w-[100px]">Amallar</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {validTables.length > 0 ? (
+                        validTables.map((table) => (
+                            <TableRow key={table.id}>
+                            <TableCell className="font-medium">{table.id}</TableCell>
+                            <TableCell>{table.name || "Noma'lum"}</TableCell>
+                            <TableCell className="hidden sm:table-cell">{table.zone || "N/A"}</TableCell>
+                            <TableCell className="text-right">
+                                <Badge variant={table.is_available ? "success" : "warning"}>
+                                  {table.is_available ? "Bo'sh" : "Band"}
+                                </Badge>
+                            </TableCell>
+                            <TableCell className="text-right">
+                                <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                    <Button variant="ghost" size="icon" className="h-8 w-8">
+                                    <ChevronDown className="h-4 w-4" />
+                                    <span className="sr-only">Amallar</span>
+                                    </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                    <DropdownMenuItem onClick={() => handleEditTableClick(table)}>
+                                      <Edit className="mr-2 h-4 w-4" /> Tahrirlash
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem onClick={() => handleDeleteTableClick(table)} className="text-red-600 focus:text-red-700 focus:bg-red-100 dark:focus:bg-red-900/50 dark:focus:text-red-400">
+                                      <Trash2 className="mr-2 h-4 w-4" /> O'chirish
+                                    </DropdownMenuItem>
+                                </DropdownMenuContent>
+                                </DropdownMenu>
+                            </TableCell>
+                            </TableRow>
+                        ))
+                       ) : (
+                        <TableRow>
+                          <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">
+                            Stollar topilmadi.
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+          {/* --- Stollar Tab Yakuni --- */}
 
           {/* Reports Tab */}
           {activeTab === "reports" && (
@@ -2544,12 +2842,11 @@ export default function AdminDashboard() {
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="add-is_active" className="text-right">Faol</Label>
               <div className="col-span-3 flex items-center">
-                <input
-                  id="add-is_active"
-                  type="checkbox"
-                  checked={newEmployee.is_active}
-                  onChange={(e) => setNewEmployee({ ...newEmployee, is_active: e.target.checked })}
-                  className="h-4 w-4 rounded border-gray-300 text-sky-600 focus:ring-sky-500"
+                 {/* Ishlatilgan Switch */}
+                <Switch
+                    id="add-is_active"
+                    checked={newEmployee.is_active}
+                    onCheckedChange={(checked) => setNewEmployee({ ...newEmployee, is_active: checked })}
                 />
               </div>
             </div>
@@ -2650,12 +2947,10 @@ export default function AdminDashboard() {
               <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="edit-is_active" className="text-right">Faol</Label>
                 <div className="col-span-3 flex items-center">
-                  <input
+                  <Switch
                     id="edit-is_active"
-                    type="checkbox"
                     checked={editingEmployee.is_active}
-                    onChange={(e) => setEditingEmployee({ ...editingEmployee, is_active: e.target.checked })}
-                    className="h-4 w-4 rounded border-gray-300 text-sky-600 focus:ring-sky-500"
+                    onCheckedChange={(checked) => setEditingEmployee({ ...editingEmployee, is_active: checked })}
                   />
                 </div>
               </div>
@@ -2725,7 +3020,7 @@ export default function AdminDashboard() {
               onClick={confirmDeleteRole}
               disabled={roleToDelete?.employee_count > 0} // Disable delete if employees assigned
             >
-              O'chirish
+             <Trash2 className="mr-2 h-4 w-4"/> O'chirish {/* YANGI: Ikonka */}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -2819,14 +3114,12 @@ export default function AdminDashboard() {
               />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="product_is_active" className="text-right">Faol</Label> {/* Unique ID */}
+              <Label htmlFor="product_is_active_add" className="text-right">Faol</Label> {/* Unique ID */}
               <div className="col-span-3 flex items-center">
-                <input
-                  id="product_is_active"
-                  type="checkbox"
+                <Switch
+                  id="product_is_active_add"
                   checked={newProduct.is_active}
-                  onChange={(e) => setNewProduct({ ...newProduct, is_active: e.target.checked })}
-                  className="h-4 w-4 rounded border-gray-300 text-sky-600 focus:ring-sky-500"
+                  onCheckedChange={(checked) => setNewProduct({ ...newProduct, is_active: checked })}
                 />
               </div>
             </div>
@@ -2954,12 +3247,10 @@ export default function AdminDashboard() {
               <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="edit-product_is_active" className="text-right">Faol</Label>
                 <div className="col-span-3 flex items-center">
-                  <input
+                  <Switch
                     id="edit-product_is_active"
-                    type="checkbox"
                     checked={editingProduct.is_active}
-                    onChange={(e) => setEditingProduct({ ...editingProduct, is_active: e.target.checked })}
-                    className="h-4 w-4 rounded border-gray-300 text-sky-600 focus:ring-sky-500"
+                    onCheckedChange={(checked) => setEditingProduct({ ...editingProduct, is_active: checked })}
                   />
                 </div>
               </div>
@@ -3228,12 +3519,152 @@ export default function AdminDashboard() {
               disabled={isDeletingCategory}
             >
               {isDeletingCategory && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              O'chirish
+               <Trash2 className="mr-2 h-4 w-4"/> O'chirish {/* YANGI: Ikonka */}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
+       {/* --- YANGI: Add Table Dialog --- */}
+       <Dialog open={showAddTableDialog} onOpenChange={setShowAddTableDialog}>
+        <DialogContent className="sm:max-w-[425px]">
+          <form onSubmit={(e) => { e.preventDefault(); handleAddTable(); }}>
+              <DialogHeader>
+                <DialogTitle>Yangi stol qo'shish</DialogTitle>
+                <DialogDescription>Yangi stol nomini, zonasini va holatini kiriting.</DialogDescription>
+              </DialogHeader>
+              <div className="grid gap-4 py-4">
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="add-table-name" className="text-right">Nomi/Raqami*</Label>
+                  <Input
+                    id="add-table-name"
+                    value={newTable.name}
+                    onChange={(e) => setNewTable({ ...newTable, name: e.target.value })}
+                    className="col-span-3"
+                    placeholder="Masalan: Stol 5 yoki VIP"
+                    required
+                    maxLength={50}
+                  />
+                </div>
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="add-table-zone" className="text-right">Zona</Label>
+                  <Input
+                    id="add-table-zone"
+                    value={newTable.zone}
+                    onChange={(e) => setNewTable({ ...newTable, zone: e.target.value })}
+                    className="col-span-3"
+                    placeholder="Masalan: Asosiy zal, Yerto'la"
+                    maxLength={50}
+                  />
+                </div>
+                <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="add-table-is_available" className="text-right">Holati (Bo'sh)</Label>
+                    <div className="col-span-3 flex items-center">
+                        <Switch
+                            id="add-table-is_available"
+                            checked={newTable.is_available}
+                            onCheckedChange={(checked) => setNewTable({ ...newTable, is_available: checked })}
+                        />
+                         <span className="ml-2 text-sm text-muted-foreground">({newTable.is_available ? "Bo'sh" : "Band"})</span>
+                    </div>
+                </div>
+              </div>
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setShowAddTableDialog(false)}>Bekor qilish</Button>
+                <Button type="submit" disabled={isAddingTable}>
+                   {isAddingTable && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                   Qo'shish
+                </Button>
+              </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* --- YANGI: Edit Table Dialog --- */}
+       <Dialog open={showEditTableDialog} onOpenChange={setShowEditTableDialog}>
+        <DialogContent className="sm:max-w-[425px]">
+          <form onSubmit={(e) => { e.preventDefault(); handleUpdateTable(); }}>
+            <DialogHeader>
+              <DialogTitle>Stolni tahrirlash</DialogTitle>
+              <DialogDescription>Stol ma'lumotlarini o'zgartiring.</DialogDescription>
+            </DialogHeader>
+            {editingTable ? (
+              <div className="grid gap-4 py-4">
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="edit-table-name" className="text-right">Nomi/Raqami*</Label>
+                  <Input
+                    id="edit-table-name"
+                    value={editingTable.name || ''}
+                    onChange={(e) => setEditingTable({ ...editingTable, name: e.target.value })}
+                    className="col-span-3"
+                    placeholder="Stol nomi/raqami"
+                    required
+                    maxLength={50}
+                  />
+                </div>
+                 <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="edit-table-zone" className="text-right">Zona</Label>
+                  <Input
+                    id="edit-table-zone"
+                    value={editingTable.zone || ''}
+                    onChange={(e) => setEditingTable({ ...editingTable, zone: e.target.value })}
+                    className="col-span-3"
+                    placeholder="Masalan: Asosiy zal"
+                    maxLength={50}
+                  />
+                </div>
+                 <div className="grid grid-cols-4 items-center gap-4">
+                    <Label htmlFor="edit-table-is_available" className="text-right">Holati (Bo'sh)</Label>
+                     <div className="col-span-3 flex items-center">
+                        <Switch
+                            id="edit-table-is_available"
+                            checked={editingTable.is_available}
+                            onCheckedChange={(checked) => setEditingTable({ ...editingTable, is_available: checked })}
+                        />
+                        <span className="ml-2 text-sm text-muted-foreground">({editingTable.is_available ? "Bo'sh" : "Band"})</span>
+                    </div>
+                </div>
+              </div>
+            ) : (
+               <div className="text-center py-10 text-muted-foreground">Stol ma'lumotlari topilmadi.</div>
+            )}
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setShowEditTableDialog(false)}>Bekor qilish</Button>
+              <Button type="submit" disabled={isUpdatingTable || !editingTable}>
+                 {isUpdatingTable && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                 Saqlash
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* --- YANGI: Delete Table Confirmation Dialog --- */}
+      <Dialog open={showDeleteTableConfirmDialog} onOpenChange={setShowDeleteTableConfirmDialog}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Stolni o'chirishni tasdiqlang</DialogTitle>
+            <DialogDescription>
+              Haqiqatan ham <strong>"{tableToDelete?.name || 'Noma\'lum'}"</strong> (ID: {tableToDelete?.id}) stolni o'chirishni xohlaysizmi? Bu amalni qaytarib bo'lmaydi.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setShowDeleteTableConfirmDialog(false); setTableToDelete(null); }}>
+              Bekor qilish
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={confirmDeleteTable}
+              disabled={isDeletingTable}
+            >
+              {isDeletingTable && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              <Trash2 className="mr-2 h-4 w-4"/> O'chirish
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+
     </div> // Asosiy div yopilishi
   ); // Asosiy return yopilishi
-}
+} // Komponent yopilishi
