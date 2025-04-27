@@ -4,32 +4,9 @@ import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import dynamic from "next/dynamic"
 import {
-  BarChart3,
-  Calendar,
-  ChevronDown,
-  CreditCard,
-  DollarSign,
-  Download,
-  FileText,
-  Home,
-  LogOut,
-  Menu,
-  PieChart,
-  Plus,
-  Settings,
-  ShoppingCart,
-  Sliders,
-  Store,
-  Users,
-  X,
-  Loader2,
-  Paperclip,
-  Printer,
-  Package,
-  Edit, // Tahrirlash uchun ikonka
-  LayoutGrid, // Kategoriya uchun ikonka
-  Trash2, // O'chirish uchun ikonka
-  Armchair // Stol uchun ikonka (YANGI)
+  BarChart3, Calendar, ChevronDown, CreditCard, DollarSign, Download, FileText, Home,
+  LogOut, Menu, PieChart, Plus, Settings, ShoppingCart, Sliders, Store, Users, X,
+  Loader2, Paperclip, Printer, Package, Edit, LayoutGrid, Trash2, Armchair
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
@@ -42,23 +19,13 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
+  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog"
-import { Separator } from "@/components/ui/separator"
+import { Separator } from "@/components/ui/separator" // Separator import qilinganiga ishonch hosil qiling
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Switch } from "@/components/ui/switch" // YANGI: Stol holati uchun
+import { Switch } from "@/components/ui/switch"
 import axios from "axios"
 import { toast, ToastContainer } from 'react-toastify'
 import 'react-toastify/dist/ReactToastify.css'
@@ -95,17 +62,18 @@ const getPaymentMethodDisplay = (method) => {
     }
 }
 
-// Chek chiqarish funksiyasi (Dropdown menyuda ishlatiladi)
+// Chek chiqarish funksiyasi (Dropdown menyuda va Modalda ishlatiladi)
 const printReceipt = (orderDetails) => {
   if (!orderDetails) {
     toast.error("Chek ma'lumotlari topilmadi!")
     return
   }
 
-  const totalItemsPrice = orderDetails.items?.reduce((sum, item) => sum + parseFloat(item.total_price || 0), 0) ?? 0
-  const serviceFeeAmount = totalItemsPrice * (parseFloat(orderDetails.service_fee_percent || 0) / 100)
+  // API javobidagi 'total_price' (mahsulotlar jami) va 'final_price' dan foydalanish
+  const totalItemsPrice = parseFloat(orderDetails.total_price || 0)
+  const serviceFeeAmount = parseFloat(orderDetails.final_price || 0) - totalItemsPrice // Xizmat haqi farqdan hisoblanadi
   const finalPrice = parseFloat(orderDetails.final_price || 0)
-  const paymentMethodForReceipt = orderDetails.payment?.method ? getPaymentMethodDisplay(orderDetails.payment.method) : 'N/A';
+  const paymentMethodForReceipt = orderDetails.payment?.method ? getPaymentMethodDisplay(orderDetails.payment.method) : 'To\'lanmagan'; // To'lov bo'lmasa
 
   const receiptHTML = `
     <html>
@@ -120,7 +88,7 @@ const printReceipt = (orderDetails) => {
           .header h1 { margin: 0 0 5px 0; font-size: 14pt; } .header p { margin: 2px 0; }
           .details { margin-bottom: 10px; } .details p { margin: 3px 0; line-height: 1.3; }
           table { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
-          th, td { padding: 3px 1px; text-align: left; vertical-align: top; }
+          th, td { padding: 3px 1px; text-align: left; vertical-align: top; font-size: 9pt; } /* Shrink font size */
           th { border-bottom: 1px solid #000; font-weight: bold;}
           td:nth-child(2), td:nth-child(3), td:nth-child(4) { text-align: right; }
           th:nth-child(2), th:nth-child(3), th:nth-child(4) { text-align: right; }
@@ -139,6 +107,7 @@ const printReceipt = (orderDetails) => {
             <p>Sana: ${new Date(orderDetails.created_at).toLocaleString('uz-UZ', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
             <p>Mijoz: ${orderDetails.customer_name || 'Noma\'lum'}</p>
             <p>Xodim: ${orderDetails.created_by?.first_name || ''} ${orderDetails.created_by?.last_name || 'N/A'}</p>
+            ${orderDetails.table ? `<p>Stol: ${orderDetails.table.name || 'N/A'}</p>` : ''}
             <p>To'lov usuli: ${paymentMethodForReceipt}</p>
             <p>Buyurtma turi: ${orderDetails.order_type_display || 'N/A'}</p>
           </div>
@@ -149,6 +118,8 @@ const printReceipt = (orderDetails) => {
             <p><span>Jami (Mahs.):</span> <span>${totalItemsPrice.toLocaleString()} so'm</span></p>
             ${serviceFeeAmount > 0 ? `<p><span>Xizmat haqi (${orderDetails.service_fee_percent || 0}%):</span> <span>+ ${serviceFeeAmount.toLocaleString()} so'm</span></p>` : ''}
             <p class="final-price"><span>Jami:</span> <span>${finalPrice.toLocaleString()} so'm</span></p>
+            ${orderDetails.payment?.received_amount && orderDetails.payment?.change_amount !== null ? `<p><span>Naqd olingan:</span> <span>${(parseFloat(orderDetails.payment.received_amount) || 0).toLocaleString()} so'm</span></p>` : ''}
+            ${orderDetails.payment?.change_amount !== null ? `<p><span>Qaytim:</span> <span>${(parseFloat(orderDetails.payment.change_amount) || 0).toLocaleString()} so'm</span></p>` : ''}
           </div>
           <div class="footer"><p>Xaridingiz uchun rahmat!</p><p>SmartResto</p></div>
         </div>
@@ -160,43 +131,42 @@ const printReceipt = (orderDetails) => {
   if (printWindow) {
     printWindow.document.write(receiptHTML);
     printWindow.document.close();
+    // Give the browser a moment to render before printing
     printWindow.onload = () => {
         setTimeout(() => {
             printWindow.print();
-            printWindow.close();
-        }, 250);
+            // Delay closing slightly more to ensure print dialog appears
+            setTimeout(() => {
+                 printWindow.close();
+            }, 500);
+        }, 250); // Initial delay before print command
     };
-    printWindow.focus();
+    printWindow.focus(); // Bring the print window to front
   } else {
     toast.error("Chop etish oynasini ochib bo'lmadi. Brauzer bloklagan bo'lishi mumkin.");
   }
 }; // printReceipt funksiyasi tugadi
 
-// --- YANGI: Rol tarjimalari va funksiyasi ---
+// Rol tarjimalari
 const roleTranslations = {
   waiter: "Ofitsiant",
   chef: "Oshpaz",
   cashier: "Kassir",
   delivery: "Yetkazib beruvchi",
-  // Kerak bo'lsa boshqa rollarni ham qo'shing:
   // manager: "Menejer",
   // admin: "Administrator",
 };
 
 const translateRole = (roleName) => {
-  if (!roleName || typeof roleName !== 'string') {
-    return "N/A"; // Yoki "Noma'lum"
-  }
-  const lowerCaseRole = roleName.toLowerCase();
-  return roleTranslations[lowerCaseRole] || roleName; // Agar tarjima topilmasa, asl nomni qaytarish
+  if (!roleName || typeof roleName !== 'string') return "N/A";
+  return roleTranslations[roleName.toLowerCase()] || roleName;
 };
-// --- Rol tarjimalari tugadi ---
 
 // Asosiy Komponent
 export default function AdminDashboard() {
   const router = useRouter();
 
-  // --- State Management ---
+  // State Management
   const [token, setToken] = useState(null);
   const [isClient, setIsClient] = useState(false);
   const [activeTab, setActiveTab] = useState("dashboard");
@@ -214,34 +184,28 @@ export default function AdminDashboard() {
   const [showEditRoleDialog, setShowEditRoleDialog] = useState(false);
   const [editingRole, setEditingRole] = useState(null);
   const [isLoadingRoleDetails, setIsLoadingRoleDetails] = useState(false);
-  // --- Mahsulot Tahrirlash uchun State'lar ---
-  const [showEditProductDialog, setShowEditProductDialog] = useState(false); // Tahrirlash modalini boshqarish
-  const [editingProduct, setEditingProduct] = useState(null); // Tahrirlanayotgan mahsulot ma'lumotlari
-  const [isLoadingProductDetails, setIsLoadingProductDetails] = useState(false); // Mahsulot detallarini yuklash
-  const [isUpdatingProduct, setIsUpdatingProduct] = useState(false); // Mahsulotni yangilash jarayoni
-  // --- Mahsulot Tahrirlash State'lari Yakuni ---
-  // --- Kategoriya uchun State'lar ---
+  const [showEditProductDialog, setShowEditProductDialog] = useState(false);
+  const [editingProduct, setEditingProduct] = useState(null);
+  const [isLoadingProductDetails, setIsLoadingProductDetails] = useState(false);
+  const [isUpdatingProduct, setIsUpdatingProduct] = useState(false);
   const [showAddCategoryDialog, setShowAddCategoryDialog] = useState(false);
   const [showEditCategoryDialog, setShowEditCategoryDialog] = useState(false);
   const [showDeleteCategoryConfirmDialog, setShowDeleteCategoryConfirmDialog] = useState(false);
   const [newCategory, setNewCategory] = useState({ name: "" });
-  const [editingCategory, setEditingCategory] = useState(null); // { id: null, name: "" }
-  const [categoryToDelete, setCategoryToDelete] = useState(null); // { id: null, name: "" }
+  const [editingCategory, setEditingCategory] = useState(null);
+  const [categoryToDelete, setCategoryToDelete] = useState(null);
   const [isUpdatingCategory, setIsUpdatingCategory] = useState(false);
-  const [isDeletingCategory, setIsDeletingCategory] = useState(false); // Delete loading state
-  // --- Kategoriya State'lari Yakuni ---
-  // --- YANGI: Stollar uchun State'lar ---
-  const [tables, setTables] = useState([]); // Stollar ro'yxati
-  const [showAddTableDialog, setShowAddTableDialog] = useState(false); // Qo'shish dialogi
-  const [showEditTableDialog, setShowEditTableDialog] = useState(false); // Tahrirlash dialogi
-  const [showDeleteTableConfirmDialog, setShowDeleteTableConfirmDialog] = useState(false); // O'chirishni tasdiqlash dialogi
-  const [newTable, setNewTable] = useState({ name: "", zone: "", is_available: true }); // Yangi stol formasi
-  const [editingTable, setEditingTable] = useState(null); // Tahrirlanayotgan stol ma'lumotlari ({ id: null, name: "", zone: "", is_available: true })
-  const [tableToDelete, setTableToDelete] = useState(null); // O'chiriladigan stol ({ id: null, name: "" })
-  const [isAddingTable, setIsAddingTable] = useState(false); // Stol qo'shish jarayoni
-  const [isUpdatingTable, setIsUpdatingTable] = useState(false); // Stol yangilash jarayoni
-  const [isDeletingTable, setIsDeletingTable] = useState(false); // Stol o'chirish jarayoni
-  // --- Stollar State'lari Yakuni ---
+  const [isDeletingCategory, setIsDeletingCategory] = useState(false);
+  const [tables, setTables] = useState([]);
+  const [showAddTableDialog, setShowAddTableDialog] = useState(false);
+  const [showEditTableDialog, setShowEditTableDialog] = useState(false);
+  const [showDeleteTableConfirmDialog, setShowDeleteTableConfirmDialog] = useState(false);
+  const [newTable, setNewTable] = useState({ name: "", zone: "", is_available: true });
+  const [editingTable, setEditingTable] = useState(null);
+  const [tableToDelete, setTableToDelete] = useState(null);
+  const [isAddingTable, setIsAddingTable] = useState(false);
+  const [isUpdatingTable, setIsUpdatingTable] = useState(false);
+  const [isDeletingTable, setIsDeletingTable] = useState(false);
 
   // Data States
   const [stats, setStats] = useState({ todays_sales: { value: 0, change_percent: 0, comparison_period: "N/A" }, todays_orders: { value: 0, change_percent: 0, comparison_period: "N/A" }, average_check: { value: 0, change_percent: 0, comparison_period: "N/A" }, active_employees: { value: 0, change_absolute: 0, comparison_period: "N/A" } });
@@ -254,7 +218,7 @@ export default function AdminDashboard() {
   const [rolesList, setRolesList] = useState([]);
   const [employeeReport, setEmployeeReport] = useState([]);
   const [products, setProducts] = useState([]);
-  const [categories, setCategories] = useState([]); // Bu state allaqachon mavjud va ishlatiladi
+  const [categories, setCategories] = useState([]);
   const [productReportData, setProductReportData] = useState([]);
   const [customerReport, setCustomerReport] = useState([]);
   const [paymentMethods, setPaymentMethods] = useState([]);
@@ -272,9 +236,9 @@ export default function AdminDashboard() {
 
   // Other States
   const [roleToDelete, setRoleToDelete] = useState(null);
-  const [selectedOrderDetails, setSelectedOrderDetails] = useState(null);
-  const [isLoadingOrderDetails, setIsLoadingOrderDetails] = useState(false);
-  const [orderDetailsError, setOrderDetailsError] = useState(null);
+  const [selectedOrderDetails, setSelectedOrderDetails] = useState(null); // Bu state modal uchun kerak
+  const [isLoadingOrderDetails, setIsLoadingOrderDetails] = useState(false); // Modal yuklanish holati
+  const [orderDetailsError, setOrderDetailsError] = useState(null); // Modal xatolik holati
 
   // --- Utility Functions ---
 
@@ -285,7 +249,7 @@ export default function AdminDashboard() {
     setToken(null);
     toast.info("Tizimdan chiqdingiz.");
     router.replace("/auth");
-  }; // handleLogout tugadi
+  };
 
   const handleApiError = (error, contextMessage) => {
     console.error(`${contextMessage} xatolik:`, error);
@@ -304,7 +268,6 @@ export default function AdminDashboard() {
           } else if (Array.isArray(data)) {
             errorDetail = data.map(err => typeof err === 'string' ? err : (err.field ? `${err.field}: ${err.message}` : JSON.stringify(err))).join('; ');
           } else {
-            // Kategoriya va Stol xatoliklarini aniqroq ko'rsatish
             if (contextMessage.toLowerCase().includes('kategoriya') && data.name && Array.isArray(data.name)) {
                 errorDetail = `Kategoriya nomi: ${data.name.join(', ')}`;
             } else if (contextMessage.toLowerCase().includes('stol') && data.name && Array.isArray(data.name)) {
@@ -320,7 +283,8 @@ export default function AdminDashboard() {
         } else {
           errorDetail = `Serverdan kutilmagan javob (status: ${error.response.status}).`;
         }
-        if (!shouldLogout && contextMessage && !errorDetail.toLowerCase().startsWith(contextMessage.toLowerCase().split(':')[0])) {
+        // Avoid redundant context if error already contains it
+        if (!shouldLogout && contextMessage && !errorDetail.toLowerCase().startsWith(contextMessage.toLowerCase().split(':')[0].split(' ')[0])) {
              errorDetail = `${contextMessage}: ${errorDetail}`;
         }
       }
@@ -338,7 +302,7 @@ export default function AdminDashboard() {
     if (shouldLogout) {
       setTimeout(handleLogout, 1500);
     }
-  }; // handleApiError tugadi
+  };
 
   // --- useEffect Hooks ---
 
@@ -351,7 +315,7 @@ export default function AdminDashboard() {
       setToken(storedToken);
     }
      // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // Boshlang'ich tekshiruv
+  }, []); // Initial check
 
   useEffect(() => {
     if (!token || !isClient) return;
@@ -361,7 +325,6 @@ export default function AdminDashboard() {
 
     let isMounted = true;
 
-    // YANGI: fetchTables funksiyasi
     const fetchTables = async () => {
         try {
             const res = await axios.get(`https://oshxonacopy.pythonanywhere.com/api/tables/`, { headers });
@@ -374,79 +337,79 @@ export default function AdminDashboard() {
         }
     };
 
-    const fetchData = async () => {
-        // Boshqa ma'lumotlarni yuklash
-        const fetchOtherData = async () => {
-           try {
-                const [
-                    ordersRes, statsRes, usersRes, rolesRes, empReportRes,
-                    prodReportRes, productsRes, categoriesRes, custReportRes,
-                    chartsRes, salesChartRes
-                ] = await Promise.all([
-                    axios.get(`https://oshxonacopy.pythonanywhere.com/api/orders/`, { headers }),
-                    axios.get(`https://oshxonacopy.pythonanywhere.com/api/admin/dashboard/stats/`, { headers }),
-                    axios.get(`https://oshxonacopy.pythonanywhere.com/api/admin/users/`, { headers }),
-                    axios.get(`https://oshxonacopy.pythonanywhere.com/api/admin/roles/`, { headers }),
-                    axios.get(`https://oshxonacopy.pythonanywhere.com/api/admin/reports/employees/`, { headers }),
-                    axios.get(`https://oshxonacopy.pythonanywhere.com/api/admin/reports/products/`, { headers }),
-                    axios.get(`https://oshxonacopy.pythonanywhere.com/api/products/`, { headers }),
-                    axios.get(`https://oshxonacopy.pythonanywhere.com/api/categories/`, { headers }),
-                    axios.get(`https://oshxonacopy.pythonanywhere.com/api/admin/reports/customers/`, { headers }),
-                    axios.get(`https://oshxonacopy.pythonanywhere.com/api/admin/reports/charts/`, { headers }),
-                    axios.get(`https://oshxonacopy.pythonanywhere.com/api/admin/dashboard/sales-chart/`, { headers })
-                ]);
+    const fetchOtherData = async () => {
+       try {
+            const [
+                ordersRes, statsRes, usersRes, rolesRes, empReportRes,
+                prodReportRes, productsRes, categoriesRes, custReportRes,
+                chartsRes, salesChartRes
+            ] = await Promise.all([
+                axios.get(`https://oshxonacopy.pythonanywhere.com/api/orders/`, { headers }),
+                axios.get(`https://oshxonacopy.pythonanywhere.com/api/admin/dashboard/stats/`, { headers }),
+                axios.get(`https://oshxonacopy.pythonanywhere.com/api/admin/users/`, { headers }),
+                axios.get(`https://oshxonacopy.pythonanywhere.com/api/admin/roles/`, { headers }),
+                axios.get(`https://oshxonacopy.pythonanywhere.com/api/admin/reports/employees/`, { headers }),
+                axios.get(`https://oshxonacopy.pythonanywhere.com/api/admin/reports/products/`, { headers }),
+                axios.get(`https://oshxonacopy.pythonanywhere.com/api/products/`, { headers }),
+                axios.get(`https://oshxonacopy.pythonanywhere.com/api/categories/`, { headers }),
+                axios.get(`https://oshxonacopy.pythonanywhere.com/api/admin/reports/customers/`, { headers }),
+                axios.get(`https://oshxonacopy.pythonanywhere.com/api/admin/reports/charts/`, { headers }),
+                axios.get(`https://oshxonacopy.pythonanywhere.com/api/admin/dashboard/sales-chart/`, { headers })
+            ]);
 
-                if (!isMounted) return;
+            if (!isMounted) return;
 
-                const ordersData = ordersRes.data ?? [];
-                const sortedOrders = ordersData.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-                setRecentOrders(sortedOrders.slice(0, 5));
-                setOrders(sortedOrders);
+            const ordersData = ordersRes.data ?? [];
+            const sortedOrders = ordersData.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+            setRecentOrders(sortedOrders.slice(0, 5));
+            setOrders(sortedOrders);
 
-                const defaultStats = { todays_sales: { value: 0, change_percent: 0, comparison_period: "N/A" }, todays_orders: { value: 0, change_percent: 0, comparison_period: "N/A" }, average_check: { value: 0, change_percent: 0, comparison_period: "N/A" }, active_employees: { value: 0, change_absolute: 0, comparison_period: "N/A" }};
-                const receivedStats = statsRes.data || {};
-                setStats({ todays_sales: receivedStats.todays_sales ?? defaultStats.todays_sales, todays_orders: receivedStats.todays_orders ?? defaultStats.todays_orders, average_check: receivedStats.average_check ?? defaultStats.average_check, active_employees: receivedStats.active_employees ?? defaultStats.active_employees });
+            const defaultStats = { todays_sales: { value: 0, change_percent: 0, comparison_period: "N/A" }, todays_orders: { value: 0, change_percent: 0, comparison_period: "N/A" }, average_check: { value: 0, change_percent: 0, comparison_period: "N/A" }, active_employees: { value: 0, change_absolute: 0, comparison_period: "N/A" }};
+            const receivedStats = statsRes.data || {};
+            setStats({ todays_sales: receivedStats.todays_sales ?? defaultStats.todays_sales, todays_orders: receivedStats.todays_orders ?? defaultStats.todays_orders, average_check: receivedStats.average_check ?? defaultStats.average_check, active_employees: receivedStats.active_employees ?? defaultStats.active_employees });
 
-                setXodim(usersRes.data ?? []);
-                const rolesData = rolesRes.data ?? [];
-                setRolesList(rolesData);
-                setFetchedRoles(rolesData);
-                setEmployeeReport(empReportRes.data ?? []);
-                setProductReportData(prodReportRes.data ?? []);
-                setCustomerReport(custReportRes.data ?? []);
-                setProducts(productsRes.data ?? []);
-                setCategories(categoriesRes.data ?? []);
-                setPaymentMethods(chartsRes.data?.payment_methods || []);
-                setOrderTypes(chartsRes.data?.order_types || []);
-                setSalesData(salesChartRes.data ?? []);
+            setXodim(usersRes.data ?? []);
+            const rolesData = rolesRes.data ?? [];
+            setRolesList(rolesData);
+            setFetchedRoles(rolesData);
+            setEmployeeReport(empReportRes.data ?? []);
+            setProductReportData(prodReportRes.data ?? []);
+            setCustomerReport(custReportRes.data ?? []);
+            setProducts(productsRes.data ?? []);
+            setCategories(categoriesRes.data ?? []);
+            setPaymentMethods(chartsRes.data?.payment_methods || []);
+            setOrderTypes(chartsRes.data?.order_types || []);
+            setSalesData(salesChartRes.data ?? []);
 
-           } catch (err) {
-                if (isMounted) {
-                   handleApiError(err, "Asosiy ma'lumotlarni yuklashda");
-                   // Reset states on error
-                   setRecentOrders([]); setOrders([]);
-                   setStats({ todays_sales: { value: 0, change_percent: 0, comparison_period: "N/A" }, todays_orders: { value: 0, change_percent: 0, comparison_period: "N/A" }, average_check: { value: 0, change_percent: 0, comparison_period: "N/A" }, active_employees: { value: 0, change_absolute: 0, comparison_period: "N/A" }});
-                   setXodim([]); setRolesList([]); setFetchedRoles([]);
-                   setEmployeeReport([]); setProductReportData([]); setCustomerReport([]);
-                   setProducts([]); setCategories([]);
-                   setPaymentMethods([]); setOrderTypes([]);
-                   setSalesData([]);
-                }
-           }
+       } catch (err) {
+            if (isMounted) {
+               handleApiError(err, "Asosiy ma'lumotlarni yuklashda");
+               setRecentOrders([]); setOrders([]);
+               setStats({ todays_sales: { value: 0, change_percent: 0, comparison_period: "N/A" }, todays_orders: { value: 0, change_percent: 0, comparison_period: "N/A" }, average_check: { value: 0, change_percent: 0, comparison_period: "N/A" }, active_employees: { value: 0, change_absolute: 0, comparison_period: "N/A" }});
+               setXodim([]); setRolesList([]); setFetchedRoles([]);
+               setEmployeeReport([]); setProductReportData([]); setCustomerReport([]);
+               setProducts([]); setCategories([]);
+               setPaymentMethods([]); setOrderTypes([]);
+               setSalesData([]);
+               setTables([]); // Also reset tables on general data error
+            }
+       }
+    }
+
+    // Fetch all data concurrently
+    Promise.all([fetchOtherData(), fetchTables()]).catch(err => {
+        if (isMounted) {
+            console.error("Parallel data fetching failed:", err);
+            // Handle potential errors from Promise.all itself if needed
         }
+    });
 
-        // Barcha ma'lumotlarni parallel yuklash
-        await Promise.all([fetchOtherData(), fetchTables()]);
-
-    }; // fetchData tugadi
-
-    fetchData();
 
     return () => {
       isMounted = false;
     };
      // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token, isClient]); // Token/client o'zgarganda qayta yuklash
+  }, [token, isClient]); // Reload on token/client change
 
   useEffect(() => {
     if (!token || !isClient) return;
@@ -469,9 +432,9 @@ export default function AdminDashboard() {
         }
       });
 
-    return () => { isMounted = false; source.cancel("So'rov bekor qilindi."); };
+    return () => { isMounted = false; source.cancel("Top products request cancelled."); };
      // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dateRange, token, isClient]); // dateRange/token/client o'zgarganda qayta yuklash
+  }, [dateRange, token, isClient]); // Reload on dateRange/token/client change
 
   useEffect(() => {
     if (token && isClient && activeTab === "settings") {
@@ -495,7 +458,7 @@ export default function AdminDashboard() {
         return () => { isMounted = false; };
     }
      // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token, isClient, activeTab]); // activeTab/token/client o'zgarganda qayta yuklash
+  }, [token, isClient, activeTab]); // Reload on activeTab/token/client change
 
   // --- Data Refresh Functions ---
 
@@ -512,7 +475,7 @@ export default function AdminDashboard() {
         }),
       { pending: 'Buyurtmalar yangilanmoqda...', success: 'Buyurtmalar muvaffaqiyatli yangilandi!', error: 'Buyurtmalarni yangilashda xatolik!' }
     ).catch(err => handleApiError(err, "Buyurtmalarni yangilashda"))
-  }; // refreshOrders tugadi
+  };
 
   const refreshEmployees = () => {
     const headers = getAuthHeader(router)
@@ -522,7 +485,7 @@ export default function AdminDashboard() {
         .then((res) => { setXodim(res.data ?? []) }),
       { pending: 'Xodimlar yangilanmoqda...', success: 'Xodimlar ro\'yxati yangilandi!', error: 'Xodimlarni yangilashda xatolik!' }
     ).catch(err => handleApiError(err, "Xodimlarni yangilashda"))
-  }; // refreshEmployees tugadi
+  };
 
   const refreshRoles = () => {
     const headers = getAuthHeader(router)
@@ -540,7 +503,7 @@ export default function AdminDashboard() {
       setRolesList([])
       setFetchedRoles([])
     })
-  }; // refreshRoles tugadi
+  };
 
   const refreshProducts = () => {
     const headers = getAuthHeader(router)
@@ -550,9 +513,8 @@ export default function AdminDashboard() {
         .then((res) => { setProducts(res.data ?? []) }),
       { pending: 'Mahsulotlar yangilanmoqda...', success: 'Mahsulotlar ro\'yxati yangilandi!', error: 'Mahsulotlarni yangilashda xatolik!' }
     ).catch(err => handleApiError(err, "Mahsulotlarni yangilashda"))
-  }; // refreshProducts tugadi
+  };
 
-  // --- YANGI: Kategoriyalarni yangilash funksiyasi ---
   const refreshCategories = () => {
     const headers = getAuthHeader(router);
     if (!headers) return;
@@ -564,11 +526,10 @@ export default function AdminDashboard() {
       { pending: 'Kategoriyalar yangilanmoqda...', success: 'Kategoriyalar ro\'yxati yangilandi!', error: 'Kategoriyalarni yangilashda xatolik!' }
     ).catch(err => {
         handleApiError(err, "Kategoriyalarni yangilashda");
-        setCategories([]); // Xatolik bo'lsa tozalash
+        setCategories([]);
     });
-  }; // refreshCategories tugadi
+  };
 
-  // --- YANGI: Stollarni yangilash funksiyasi ---
   const refreshTables = () => {
     const headers = getAuthHeader(router);
     if (!headers) return;
@@ -580,9 +541,9 @@ export default function AdminDashboard() {
       { pending: 'Stollar yangilanmoqda...', success: 'Stollar ro\'yxati yangilandi!', error: 'Stollarni yangilashda xatolik!' }
     ).catch(err => {
         handleApiError(err, "Stollarni yangilashda");
-        setTables([]); // Xatolik bo'lsa tozalash
+        setTables([]);
     });
-  }; // refreshTables tugadi
+  };
 
   // --- Action Handlers ---
 
@@ -593,31 +554,35 @@ export default function AdminDashboard() {
     toast.promise(
       axios.post(
         `https://oshxonacopy.pythonanywhere.com/api/orders/${orderId}/cancel_order/`,
-        {},
+        {}, // Empty body for this POST request
         { headers }
       ).then(response => {
+        // Check for 200 OK or 204 No Content which are typical success responses
         if (response.status === 200 || response.status === 204) {
-          refreshOrders();
+          refreshOrders(); // Refresh the list to reflect the change
+          // If the details modal was open for this order, refresh its data too
           if (showOrderDetailsModal && selectedOrderDetails?.id === orderId) {
-             handleShowOrderDetails(orderId);
+             // Re-fetch details or simply close the modal, re-fetch might be better
+             handleShowOrderDetails(orderId); // Re-fetches and shows updated status
           }
           return `Buyurtma #${orderId} muvaffaqiyatli bekor qilindi!`;
         } else {
+          // Handle unexpected success status codes if necessary
           throw new Error(`Buyurtmani bekor qilishda kutilmagan javob: ${response.status}`);
         }
       }),
       {
         pending: `Buyurtma #${orderId} bekor qilinmoqda...`,
-        success: { render: ({ data }) => data },
+        success: { render: ({ data }) => data }, // Render the success message from the promise resolution
         error: {
-          render: ({ data }) => {
-            handleApiError(data, `Buyurtma #${orderId} ni bekor qilishda`);
-            return `Buyurtma #${orderId} ni bekor qilishda xatolik!`;
+          render: ({ data }) => { // data here is the error object
+            handleApiError(data, `Buyurtma #${orderId} ni bekor qilishda`); // Use the centralized error handler
+            return `Buyurtma #${orderId} ni bekor qilishda xatolik!`; // Provide a generic error message for the toast
           }
         }
       }
     );
-  }; // handleCancelOrder tugadi
+  };
 
   const handleAddEmployee = async () => {
     if (!newEmployee.username || !newEmployee.first_name || !newEmployee.last_name || !newEmployee.role_id || !newEmployee.pin_code) {
@@ -658,7 +623,7 @@ export default function AdminDashboard() {
             error: { render({ data }) { handleApiError(data, "Xodim qo'shishda"); return "Xodim qo'shishda xatolik!"; }}
         }
     );
-  }; // handleAddEmployee tugadi
+  };
 
   const handleEditEmployeeClick = async (employee) => {
     if (!employee || !employee.id) {
@@ -677,44 +642,48 @@ export default function AdminDashboard() {
         if (response.data) {
             setEditingEmployee({
                 ...response.data,
-                role_id: response.data.role?.id,
-                pin_code: '',
+                role_id: response.data.role?.id, // Get role ID
+                pin_code: '', // Clear pin code field for security/UX
             });
         } else {
             throw new Error("Xodim ma'lumotlari topilmadi");
         }
     } catch (err) {
         handleApiError(err, `Xodim #${employee.id} ma'lumotlarini olishda`);
-        setShowEditEmployeeDialog(false);
+        setShowEditEmployeeDialog(false); // Close dialog on error
     } finally {
         setIsLoadingEmployeeDetails(false);
     }
-  }; // handleEditEmployeeClick tugadi
+  };
 
   const handleUpdateEmployee = async () => {
     if (!editingEmployee || !editingEmployee.id) {
         toast.error("Tahrirlanayotgan xodim ma'lumotlari topilmadi.");
         return;
     }
+    // Basic validation
     if (!editingEmployee.username || !editingEmployee.first_name || !editingEmployee.last_name || !editingEmployee.role_id) {
         toast.error("Iltimos, username, ism, familiya va rol maydonlarini to'ldiring.");
         return;
     }
+    // PIN validation - MUST be provided during update
     if (!editingEmployee.pin_code || !/^\d{4}$/.test(editingEmployee.pin_code)) {
-        toast.error("PIN-kod 4 ta raqamdan iborat bo'lishi kerak.");
+        toast.error("PIN-kod 4 ta raqamdan iborat bo'lishi kerak va tahrirlashda majburiy.");
         return;
     }
 
     const headers = getAuthHeader(router);
     if (!headers) return;
 
+    // Data to send for PUT request
     const updateData = {
         username: editingEmployee.username.trim(),
         first_name: editingEmployee.first_name.trim(),
         last_name: editingEmployee.last_name.trim(),
         role_id: parseInt(editingEmployee.role_id),
-        pin_code: editingEmployee.pin_code,
+        pin_code: editingEmployee.pin_code, // Send the new PIN
         is_active: editingEmployee.is_active,
+        // Include other fields if your API requires/allows them in PUT
     };
 
     const employeeId = editingEmployee.id;
@@ -723,10 +692,10 @@ export default function AdminDashboard() {
     toast.promise(
         axios.put(`https://oshxonacopy.pythonanywhere.com/api/admin/users/${employeeId}/`, updateData, { headers })
             .then(response => {
-                if (response.status === 200) {
+                if (response.status === 200) { // PUT usually returns 200 OK
                     setShowEditEmployeeDialog(false);
-                    setEditingEmployee(null);
-                    refreshEmployees();
+                    setEditingEmployee(null); // Clear editing state
+                    refreshEmployees(); // Refresh the list
                     return `Xodim "${employeeName}" ma'lumotlari muvaffaqiyatli yangilandi!`;
                 } else {
                     throw new Error(`Xodimni yangilashda kutilmagan javob: ${response.status}`);
@@ -738,8 +707,7 @@ export default function AdminDashboard() {
             error: { render({ data }) { handleApiError(data, `Xodim #${employeeId} ni yangilashda`); return "Xodimni yangilashda xatolik!"; }}
         }
     );
-  }; // handleUpdateEmployee tugadi
-
+  };
 
   const handleAddRole = async () => {
     if (!newRole.name || newRole.name.trim() === "") {
@@ -758,7 +726,6 @@ export default function AdminDashboard() {
                     setNewRole({ name: "" });
                     setShowAddRoleDialog(false);
                     refreshRoles();
-                    // --- Yaxshilash: Qo'shilgan rolni ham tarjima qilish mumkin ---
                     return `Rol "${translateRole(roleData.name)}" muvaffaqiyatli qo'shildi!`;
                 } else {
                      throw new Error(`Rol qo'shishda kutilmagan javob: ${response.status}`);
@@ -770,7 +737,7 @@ export default function AdminDashboard() {
             error: { render({ data }) { handleApiError(data, "Rol qo'shishda"); return "Rol qo'shishda xatolik!"; }}
         }
     );
-  }; // handleAddRole tugadi
+  };
 
   const handleAddProduct = async () => {
     if (!newProduct.name || !newProduct.price || !newProduct.category_id) {
@@ -789,21 +756,20 @@ export default function AdminDashboard() {
     const headers = getAuthHeader(router)
     if (!headers) return
 
-    // Content-Type: multipart/form-data uchun alohida header
     const formDataHeaders = {
-        ...headers, // Mavjud headerlarni saqlab qolish (masalan, Authorization)
-        "Content-Type": "multipart/form-data",
+        ...headers,
+        "Content-Type": "multipart/form-data", // Important for file uploads
     };
 
     const formData = new FormData()
     formData.append("name", newProduct.name.trim())
-    formData.append("price", parseFloat(newProduct.price).toFixed(2)) // Decimal formatida yuborish
+    formData.append("price", parseFloat(newProduct.price).toFixed(2))
     formData.append("category_id", newProduct.category_id)
     if (newProduct.description) {
       formData.append("description", newProduct.description.trim())
     }
     if (newProduct.cost_price) {
-      formData.append("cost_price", parseFloat(newProduct.cost_price).toFixed(2)) // Decimal formatida yuborish
+      formData.append("cost_price", parseFloat(newProduct.cost_price).toFixed(2))
     }
     if (newProduct.image instanceof File) {
       formData.append("image", newProduct.image)
@@ -816,13 +782,13 @@ export default function AdminDashboard() {
         axios.post(
             "https://oshxonacopy.pythonanywhere.com/api/products/",
             formData,
-            { headers: formDataHeaders } // Yangilangan headerlarni ishlatish
+            { headers: formDataHeaders }
         ).then(response => {
             if (response.status === 201) {
                 setNewProduct({ name: "", price: "", description: "", is_active: true, category_id: "", cost_price: "", image: null });
                 setShowAddProductDialog(false);
                 refreshProducts();
-                refreshCategories(); // Mahsulot qo'shilganda kategoriyalar ham yangilanishi mumkin (agar yangi kategoriya yaratilsa)
+                refreshCategories(); // Refresh categories too, just in case
                 return `Mahsulot "${productName}" muvaffaqiyatli qo'shildi!`;
             } else {
                 throw new Error(`Mahsulot qo'shishda kutilmagan javob: ${response.status}`);
@@ -834,7 +800,7 @@ export default function AdminDashboard() {
             error: { render({ data }) { handleApiError(data, "Mahsulot qo'shishda"); return "Mahsulot qo'shishda xatolik!"; }}
         }
     );
-  }; // handleAddProduct tugadi
+  };
 
   const handleDeleteEmployee = async (employee) => {
     if (!confirm(`Haqiqatan ham "${employee.first_name} ${employee.last_name}" (ID: ${employee.id}) xodimni o'chirmoqchimisiz? Bu amalni qaytarib bo'lmaydi.`)) return
@@ -846,7 +812,7 @@ export default function AdminDashboard() {
     toast.promise(
         axios.delete(`https://oshxonacopy.pythonanywhere.com/api/admin/users/${employee.id}/`, { headers })
             .then(response => {
-                if (response.status === 204) {
+                if (response.status === 204) { // DELETE usually returns 204 No Content
                     refreshEmployees();
                     return `Xodim "${employeeName}" muvaffaqiyatli o'chirildi!`;
                 } else {
@@ -859,7 +825,7 @@ export default function AdminDashboard() {
             error: { render({ data }) { handleApiError(data, `Xodim (ID: ${employee.id}) ni o'chirishda`); return `Xodimni o'chirishda xatolik!`; }}
         }
     );
-  }; // handleDeleteEmployee tugadi
+  };
 
   const handleDeleteProduct = async (product) => {
     if (!confirm(`Haqiqatan ham "${product.name}" (ID: ${product.id}) mahsulotni o'chirmoqchimisiz? Bu amalni qaytarib bo'lmaydi.`)) return
@@ -884,22 +850,23 @@ export default function AdminDashboard() {
             error: { render({ data }) { handleApiError(data, `Mahsulot (ID: ${product.id}) ni o'chirishda`); return `Mahsulotni o'chirishda xatolik!`; }}
         }
     );
-  }; // handleDeleteProduct tugadi
+  };
 
   const handleDeleteRole = (role) => {
+    // Ensure employee_count exists, default to 0 if not present
     setRoleToDelete({
       id: role.id,
       name: role.name,
-      employee_count: role.employee_count ?? role.count ?? 0
+      employee_count: role.employee_count ?? 0
     })
     setIsDeleteRoleConfirmOpen(true)
-  }; // handleDeleteRole tugadi
+  };
 
   const confirmDeleteRole = async () => {
     if (!roleToDelete || !roleToDelete.id) return
+    // Double-check employee count before proceeding
     if (roleToDelete.employee_count > 0) {
-        // --- Yaxshilash: O'chirilayotgan rolni ham tarjima qilish ---
-        toast.error(`"${translateRole(roleToDelete.name)}" rolini o'chirib bo'lmaydi, chunki unga xodimlar biriktirilgan.`);
+        toast.error(`"${translateRole(roleToDelete.name)}" rolini o'chirib bo'lmaydi, chunki unga ${roleToDelete.employee_count} ta xodim biriktirilgan.`);
         setIsDeleteRoleConfirmOpen(false);
         setRoleToDelete(null);
         return;
@@ -908,7 +875,7 @@ export default function AdminDashboard() {
     if (!headers) return
 
     const roleName = roleToDelete.name;
-    const translatedRoleName = translateRole(roleName); // Tarjima
+    const translatedRoleName = translateRole(roleName);
 
     toast.promise(
         axios.delete(
@@ -926,13 +893,14 @@ export default function AdminDashboard() {
             pending: 'Rol o\'chirilmoqda...',
             success: { render({ data }) { return data; } },
             error: { render({ data }) {
+                // Specific check for backend error about assigned users (just in case)
                 if (data.response?.status === 400 && data.response?.data?.detail?.toLowerCase().includes("cannot delete role with assigned users")) {
                     const count = roleToDelete.employee_count || 'bir nechta';
                     toast.error(`"${translatedRoleName}" rolini o'chirib bo'lmaydi, chunki unga ${count} ta xodim biriktirilgan.`);
-                    return `"${translatedRoleName}" rolini o'chirib bo'lmaydi.`;
+                    return `"${translatedRoleName}" rolini o'chirib bo'lmaydi.`; // More specific toast message
                 } else {
                      handleApiError(data, `"${translatedRoleName}" rolini o'chirishda`);
-                     return `Rolni o'chirishda xatolik!`;
+                     return `Rolni o'chirishda xatolik!`; // Generic message
                 }
             }}
         }
@@ -940,9 +908,9 @@ export default function AdminDashboard() {
         setIsDeleteRoleConfirmOpen(false);
         setRoleToDelete(null);
     });
-  }; // confirmDeleteRole tugadi
+  };
 
-
+  // BUYURTMA TAFSILOTLARINI KO'RSATISH FUNKSIYASI
   const handleShowOrderDetails = async (orderId) => {
     if (!orderId) {
       console.error("Buyurtma ID si topilmadi!")
@@ -952,36 +920,42 @@ export default function AdminDashboard() {
     const headers = getAuthHeader(router)
     if (!headers) return
 
-    setShowOrderDetailsModal(true)
-    setIsLoadingOrderDetails(true)
-    setSelectedOrderDetails(null)
-    setOrderDetailsError(null)
+    setShowOrderDetailsModal(true) // Modalni ochish
+    setIsLoadingOrderDetails(true) // Yuklanishni boshlash
+    setSelectedOrderDetails(null) // Eski ma'lumotni tozalash
+    setOrderDetailsError(null) // Eski xatoni tozalash
 
     try {
       const response = await axios.get(
         `https://oshxonacopy.pythonanywhere.com/api/orders/${orderId}/`,
         { headers }
       )
-      setSelectedOrderDetails(response.data)
-      console.log("Order Details API Response:", response.data);
-      setOrderDetailsError(null)
+      console.log("Order Details API Response:", response.data); // Konsolga chiqarish
+      if (response.data) {
+          setSelectedOrderDetails(response.data) // State ga saqlash
+      } else {
+          throw new Error("API dan bo'sh ma'lumot qaytdi");
+      }
+      setOrderDetailsError(null) // Xato yo'qligini belgilash
     } catch (err) {
       handleApiError(err, `Buyurtma #${orderId} tafsilotlarini olishda`)
       setOrderDetailsError(`Tafsilotlarni yuklashda xatolik yuz berdi. Qaytadan urinib ko'ring.`)
-      setSelectedOrderDetails(null)
+      setSelectedOrderDetails(null) // Xatolik bo'lsa, state ni tozalash
     } finally {
-      setIsLoadingOrderDetails(false)
+      setIsLoadingOrderDetails(false) // Yuklanishni tugatish
     }
-  }; // handleShowOrderDetails tugadi
+  };
 
+  // Modal oynani yopish funksiyasi
   const handleModalClose = () => {
     setShowOrderDetailsModal(false)
+    // Reset states after animation
     setTimeout(() => {
       setSelectedOrderDetails(null)
       setIsLoadingOrderDetails(false)
       setOrderDetailsError(null)
-    }, 300)
-  }; // handleModalClose tugadi
+    }, 300) // Match modal close animation duration
+  };
 
   const handleUpdateSettings = async () => {
     const headers = getAuthHeader(router);
@@ -992,12 +966,14 @@ export default function AdminDashboard() {
         return;
     }
 
+    // Ensure numeric fields are numbers or null, not empty strings
     const processedSettings = {
         ...settings,
         tax_percent: settings.tax_percent === null || settings.tax_percent === '' ? null : parseFloat(settings.tax_percent) || 0,
         service_fee_percent: settings.service_fee_percent === null || settings.service_fee_percent === '' ? null : parseFloat(settings.service_fee_percent) || 0,
     };
 
+    // Convert any remaining empty strings to null for optional fields
     Object.keys(processedSettings).forEach(key => {
       if (processedSettings[key] === "") {
          processedSettings[key] = null;
@@ -1011,7 +987,7 @@ export default function AdminDashboard() {
             { headers }
         ).then(response => {
             if (response.status === 200) {
-                setSettings(response.data);
+                setSettings(response.data); // Update local state with response
                 return "Sozlamalar muvaffaqiyatli yangilandi!";
             } else {
                 throw new Error(`Sozlamalarni yangilashda kutilmagan javob: ${response.status}`);
@@ -1023,31 +999,18 @@ export default function AdminDashboard() {
             error: { render({ data }) { handleApiError(data, "Sozlamalarni yangilashda"); return "Sozlamalarni yangilashda xatolik!"; }}
         }
     );
-  }; // handleUpdateSettings tugadi
+  };
 
   const handleEditRoleClick = async (role) => {
     if (!role || !role.id) {
       toast.error("Rol ma'lumotlarini olish uchun ID topilmadi.");
       return;
     }
-    const headers = getAuthHeader(router);
-    if (!headers) return;
-
-    setEditingRole(null);
+    // No need to fetch again if we only edit the name
+    setEditingRole({ id: role.id, name: role.name });
     setShowEditRoleDialog(true);
-    setIsLoadingRoleDetails(true);
-
-    try {
-      // Rolni tahrirlash uchun GET so'rovi shart emas, chunki faqat nomi tahrirlanadi
-      // Agar API murakkabroq bo'lsa kerak bo'lardi
-      setEditingRole({ id: role.id, name: role.name });
-      setIsLoadingRoleDetails(false); // Tezda false qilish
-    } catch (err) {
-      handleApiError(err, `Rol #${role.id} ma'lumotlarini olishda`);
-      setShowEditRoleDialog(false);
-      setIsLoadingRoleDetails(false);
-    }
-  }; // handleEditRoleClick tugadi
+    setIsLoadingRoleDetails(false); // Not actually loading anything here
+  };
 
   const handleUpdateRole = async () => {
     if (!editingRole || !editingRole.id || !editingRole.name?.trim()) {
@@ -1065,7 +1028,7 @@ export default function AdminDashboard() {
     const updateData = { name: editingRole.name.trim() };
     const roleId = editingRole.id;
     const roleName = updateData.name;
-    const translatedRoleName = translateRole(roleName); // Tarjima
+    const translatedRoleName = translateRole(roleName); // Translate for message
 
     toast.promise(
       axios.put(`https://oshxonacopy.pythonanywhere.com/api/admin/roles/${roleId}/`, updateData, { headers })
@@ -1082,12 +1045,11 @@ export default function AdminDashboard() {
       {
         pending: 'Rol yangilanmoqda...',
         success: { render({ data }) { return data; } },
-        error: { render({ data }) { handleApiError(data, `Rol #${roleId} ni yangilashda`); return "Rolni yangilashda xatolik!"; }}
+        error: { render({ data }) { handleApiError(data, `Rol #${roleId} ("${translatedRoleName}") ni yangilashda`); return "Rolni yangilashda xatolik!"; }}
       }
     );
-  }; // handleUpdateRole tugadi
+  };
 
-  // --- Mahsulot Tahrirlash Funksiyalari ---
   const handleEditProductClick = async (product) => {
     if (!product || !product.id) {
         toast.error("Mahsulot ma'lumotlarini olish uchun ID topilmadi.");
@@ -1096,24 +1058,21 @@ export default function AdminDashboard() {
     const headers = getAuthHeader(router);
     if (!headers) return;
 
-    setEditingProduct(null); // Eski ma'lumotni tozalash
-    setShowEditProductDialog(true); // Modalni ochish
-    setIsLoadingProductDetails(true); // Yuklanish indikatorini yoqish
+    setEditingProduct(null);
+    setShowEditProductDialog(true);
+    setIsLoadingProductDetails(true);
 
     try {
-        // Mahsulot detallarini olish uchun GET so'rovi
         const response = await axios.get(`https://oshxonacopy.pythonanywhere.com/api/products/${product.id}/`, { headers });
         if (response.data) {
-            // Narxlarni string formatiga o'tkazish (Input type="number" uchun)
-            // category_id ni string ga o'tkazish (Select uchun)
             setEditingProduct({
                 ...response.data,
-                price: response.data.price?.toString() || '',
-                cost_price: response.data.cost_price?.toString() || '',
-                category_id: response.data.category?.id?.toString() || '', // Kategoriyadan faqat ID ni olamiz
-                newImage: null, // Yangi rasm tanlanmaganligini bildirish uchun
+                price: response.data.price?.toString() || '', // Convert to string for input
+                cost_price: response.data.cost_price?.toString() || '', // Convert to string
+                category_id: response.data.category?.id?.toString() || '', // Get category ID as string
+                newImage: null, // To track if a new image is selected
             });
-             console.log("Editing Product Data:", {
+             console.log("Editing Product Data (Fetched):", {
                  ...response.data,
                  price: response.data.price?.toString() || '',
                  cost_price: response.data.cost_price?.toString() || '',
@@ -1125,18 +1084,17 @@ export default function AdminDashboard() {
         }
     } catch (err) {
         handleApiError(err, `Mahsulot #${product.id} ma'lumotlarini olishda`);
-        setShowEditProductDialog(false); // Xatolik bo'lsa modalni yopish
+        setShowEditProductDialog(false);
     } finally {
-        setIsLoadingProductDetails(false); // Yuklanish indikatorini o'chirish
+        setIsLoadingProductDetails(false);
     }
-  }; // handleEditProductClick tugadi
+  };
 
   const handleUpdateProduct = async () => {
       if (!editingProduct || !editingProduct.id) {
           toast.error("Tahrirlanayotgan mahsulot ma'lumotlari topilmadi.");
           return;
       }
-      // Validatsiya
       if (!editingProduct.name || !editingProduct.price || !editingProduct.category_id) {
           toast.error("Iltimos, mahsulot nomi, narxi va kategoriyasini kiriting.");
           return;
@@ -1153,28 +1111,23 @@ export default function AdminDashboard() {
       const headers = getAuthHeader(router);
       if (!headers) return;
 
-      // PUT so'rovi uchun FormData tayyorlash
       const formData = new FormData();
       formData.append("name", editingProduct.name.trim());
-      formData.append("price", parseFloat(editingProduct.price).toFixed(2)); // Decimal formatida
+      formData.append("price", parseFloat(editingProduct.price).toFixed(2));
       formData.append("category_id", editingProduct.category_id);
       formData.append("is_active", editingProduct.is_active ? "true" : "false");
-
-      // Ixtiyoriy maydonlarni qo'shish
       if (editingProduct.description) {
           formData.append("description", editingProduct.description.trim());
       }
       if (editingProduct.cost_price) {
-          formData.append("cost_price", parseFloat(editingProduct.cost_price).toFixed(2)); // Decimal formatida
+          formData.append("cost_price", parseFloat(editingProduct.cost_price).toFixed(2));
       }
-      // Agar yangi rasm tanlangan bo'lsa, uni qo'shish
+      // IMPORTANT: Only append image if a new one was selected
       if (editingProduct.newImage instanceof File) {
           formData.append("image", editingProduct.newImage);
       }
-       // Agar yangi rasm tanlanmasa, 'image' maydonini umuman yubormaslik kerak
-       // Backend odatda bu holatda eski rasmni saqlab qoladi
+      // If no new image, don't send the 'image' field, backend should keep the old one
 
-      // Content-Type ni o'zgartirish
       const formDataHeaders = {
           ...headers,
           "Content-Type": "multipart/form-data",
@@ -1182,18 +1135,18 @@ export default function AdminDashboard() {
 
       const productId = editingProduct.id;
       const productName = editingProduct.name.trim();
-      setIsUpdatingProduct(true); // Yangilash jarayoni boshlandi
+      setIsUpdatingProduct(true);
 
       toast.promise(
-          axios.put(
+          axios.put( // Use PUT for updates
               `https://oshxonacopy.pythonanywhere.com/api/products/${productId}/`,
               formData,
               { headers: formDataHeaders }
           ).then(response => {
-              if (response.status === 200) { // PUT uchun odatda 200 OK
+              if (response.status === 200) { // PUT usually returns 200 OK
                   setShowEditProductDialog(false);
                   setEditingProduct(null);
-                  refreshProducts(); // Mahsulotlar ro'yxatini yangilash
+                  refreshProducts();
                   return `Mahsulot "${productName}" muvaffaqiyatli yangilandi!`;
               } else {
                   throw new Error(`Mahsulotni yangilashda kutilmagan javob: ${response.status}`);
@@ -1205,12 +1158,10 @@ export default function AdminDashboard() {
               error: { render({ data }) { handleApiError(data, `Mahsulot #${productId} ni yangilashda`); return "Mahsulotni yangilashda xatolik!"; }}
           }
       ).finally(() => {
-          setIsUpdatingProduct(false); // Yangilash jarayoni tugadi
+          setIsUpdatingProduct(false);
       });
-  }; // handleUpdateProduct tugadi
-  // --- Mahsulot Tahrirlash Funksiyalari Yakuni ---
+  };
 
-  // --- YANGI: Kategoriya Action Handlers ---
   const handleAddCategory = async () => {
     if (!newCategory.name || newCategory.name.trim() === "") {
       toast.error("Iltimos, kategoriya nomini kiriting.");
@@ -1232,7 +1183,7 @@ export default function AdminDashboard() {
                 if (response.status === 201) {
                     setNewCategory({ name: "" });
                     setShowAddCategoryDialog(false);
-                    refreshCategories(); // Kategoriyalarni yangilash
+                    refreshCategories();
                     return `Kategoriya "${categoryData.name}" muvaffaqiyatli qo'shildi!`;
                 } else {
                     throw new Error(`Kategoriya qo'shishda kutilmagan javob: ${response.status}`);
@@ -1244,7 +1195,7 @@ export default function AdminDashboard() {
             error: { render({ data }) { handleApiError(data, "Kategoriya qo'shishda"); return "Kategoriya qo'shishda xatolik!"; } }
         }
     );
-  }; // handleAddCategory tugadi
+  };
 
   const handleEditCategoryClick = (category) => {
       if (!category || !category.id) {
@@ -1253,7 +1204,7 @@ export default function AdminDashboard() {
       }
       setEditingCategory({ id: category.id, name: category.name });
       setShowEditCategoryDialog(true);
-  }; // handleEditCategoryClick tugadi
+  };
 
   const handleUpdateCategory = async () => {
     if (!editingCategory || !editingCategory.id || !editingCategory.name?.trim()) {
@@ -1279,7 +1230,7 @@ export default function AdminDashboard() {
           if (response.status === 200) {
             setShowEditCategoryDialog(false);
             setEditingCategory(null);
-            refreshCategories(); // Kategoriyalar ro'yxatini yangilash
+            refreshCategories();
             return `Kategoriya "${categoryName}" muvaffaqiyatli yangilandi!`;
           } else {
             throw new Error(`Kategoriyani yangilashda kutilmagan javob: ${response.status}`);
@@ -1288,12 +1239,12 @@ export default function AdminDashboard() {
       {
         pending: 'Kategoriya yangilanmoqda...',
         success: { render({ data }) { return data; } },
-        error: { render({ data }) { handleApiError(data, `Kategoriya #${categoryId} ni yangilashda`); return "Kategoriyani yangilashda xatolik!"; }}
+        error: { render({ data }) { handleApiError(data, `Kategoriya #${categoryId} ("${categoryName}") ni yangilashda`); return "Kategoriyani yangilashda xatolik!"; }}
       }
     ).finally(() => {
         setIsUpdatingCategory(false);
     });
-  }; // handleUpdateCategory tugadi
+  };
 
   const handleDeleteCategoryClick = (category) => {
       if (!category || !category.id) {
@@ -1302,7 +1253,7 @@ export default function AdminDashboard() {
       }
       setCategoryToDelete({ id: category.id, name: category.name });
       setShowDeleteCategoryConfirmDialog(true);
-  }; // handleDeleteCategoryClick tugadi
+  };
 
   const confirmDeleteCategory = async () => {
     if (!categoryToDelete || !categoryToDelete.id) return;
@@ -1320,7 +1271,9 @@ export default function AdminDashboard() {
             { headers }
         ).then(response => {
             if (response.status === 204) {
-                refreshCategories(); // Kategoriyalar ro'yxatini yangilash
+                refreshCategories();
+                // Also refresh products in case category is no longer available for selection
+                refreshProducts();
                 return `Kategoriya "${categoryName}" muvaffaqiyatli o'chirildi!`;
             } else {
                 throw new Error(`Kategoriyani o'chirishda kutilmagan javob: ${response.status}`);
@@ -1330,10 +1283,11 @@ export default function AdminDashboard() {
             pending: 'Kategoriya o\'chirilmoqda...',
             success: { render({ data }) { return data; } },
             error: { render({ data }) {
-                 // Agar backend 400 qaytarsa (masalan, bog'liq mahsulotlar borligi uchun)
                  if (data.response?.status === 400) {
-                     handleApiError(data, `"${categoryName}" kategoriyasini o'chirishda`);
-                     return `"${categoryName}" kategoriyasini o'chirishda xatolik: ${data.response?.data?.detail || 'Bog\'liq mahsulotlar mavjud bo\'lishi mumkin.'}`;
+                     // Try to provide a more specific error from backend if available
+                     const detail = data.response?.data?.detail || 'Bog\'liq mahsulotlar mavjud bo\'lishi mumkin.';
+                     handleApiError(data, `"${categoryName}" kategoriyasini o'chirishda (${detail})`);
+                     return `"${categoryName}" kategoriyasini o'chirishda xatolik: ${detail}`;
                  } else {
                      handleApiError(data, `"${categoryName}" kategoriyasini o'chirishda`);
                      return `Kategoriyani o'chirishda xatolik!`;
@@ -1345,10 +1299,8 @@ export default function AdminDashboard() {
         setCategoryToDelete(null);
         setIsDeletingCategory(false);
     });
-  }; // confirmDeleteCategory tugadi
-  // --- Kategoriya Action Handlers Yakuni ---
+  };
 
-  // --- YANGI: Stollar Action Handlers ---
   const handleAddTable = async () => {
     if (!newTable.name || newTable.name.trim() === "") {
       toast.error("Iltimos, stol nomini/raqamini kiriting.");
@@ -1366,10 +1318,9 @@ export default function AdminDashboard() {
     const headers = getAuthHeader(router);
     if (!headers) return;
 
-    // Nullable bo'lishi mumkin bo'lgan 'zone' ni to'g'ri yuborish
     const tableData = {
         name: newTable.name.trim(),
-        zone: newTable.zone?.trim() || null, // Agar bo'sh bo'lsa null yuborish
+        zone: newTable.zone?.trim() || null,
         is_available: newTable.is_available,
     };
     setIsAddingTable(true);
@@ -1380,7 +1331,7 @@ export default function AdminDashboard() {
                 if (response.status === 201) {
                     setNewTable({ name: "", zone: "", is_available: true });
                     setShowAddTableDialog(false);
-                    refreshTables(); // Stollar ro'yxatini yangilash
+                    refreshTables();
                     return `Stol "${tableData.name}" muvaffaqiyatli qo'shildi!`;
                 } else {
                     throw new Error(`Stol qo'shishda kutilmagan javob: ${response.status}`);
@@ -1394,7 +1345,7 @@ export default function AdminDashboard() {
     ).finally(() => {
         setIsAddingTable(false);
     });
-  }; // handleAddTable tugadi
+  };
 
   const handleEditTableClick = (table) => {
       if (!table || !table.id) {
@@ -1404,11 +1355,11 @@ export default function AdminDashboard() {
       setEditingTable({
           id: table.id,
           name: table.name || '',
-          zone: table.zone || '', // API null qaytarsa ham '' ga o'tkazish
-          is_available: table.is_available ?? true // Default true agar kelmasa
+          zone: table.zone || '', // Handle potential null from API
+          is_available: table.is_available ?? true // Default to true if not provided
       });
       setShowEditTableDialog(true);
-  }; // handleEditTableClick tugadi
+  };
 
   const handleUpdateTable = async () => {
     if (!editingTable || !editingTable.id) {
@@ -1446,7 +1397,7 @@ export default function AdminDashboard() {
           if (response.status === 200) {
             setShowEditTableDialog(false);
             setEditingTable(null);
-            refreshTables(); // Stollar ro'yxatini yangilash
+            refreshTables();
             return `Stol "${tableName}" muvaffaqiyatli yangilandi!`;
           } else {
             throw new Error(`Stolni yangilashda kutilmagan javob: ${response.status}`);
@@ -1455,12 +1406,12 @@ export default function AdminDashboard() {
       {
         pending: 'Stol yangilanmoqda...',
         success: { render({ data }) { return data; } },
-        error: { render({ data }) { handleApiError(data, `Stol #${tableId} ni yangilashda`); return "Stolni yangilashda xatolik!"; }}
+        error: { render({ data }) { handleApiError(data, `Stol #${tableId} ("${tableName}") ni yangilashda`); return "Stolni yangilashda xatolik!"; }}
       }
     ).finally(() => {
         setIsUpdatingTable(false);
     });
-  }; // handleUpdateTable tugadi
+  };
 
   const handleDeleteTableClick = (table) => {
       if (!table || !table.id) {
@@ -1469,7 +1420,7 @@ export default function AdminDashboard() {
       }
       setTableToDelete({ id: table.id, name: table.name });
       setShowDeleteTableConfirmDialog(true);
-  }; // handleDeleteTableClick tugadi
+  };
 
   const confirmDeleteTable = async () => {
     if (!tableToDelete || !tableToDelete.id) return;
@@ -1487,7 +1438,7 @@ export default function AdminDashboard() {
             { headers }
         ).then(response => {
             if (response.status === 204) {
-                refreshTables(); // Stollar ro'yxatini yangilash
+                refreshTables();
                 return `Stol "${tableName}" (ID: ${tableId}) muvaffaqiyatli o'chirildi!`;
             } else {
                 throw new Error(`Stolni o'chirishda kutilmagan javob: ${response.status}`);
@@ -1497,9 +1448,8 @@ export default function AdminDashboard() {
             pending: 'Stol o\'chirilmoqda...',
             success: { render({ data }) { return data; } },
             error: { render({ data }) {
-                 // Backend'dan kelishi mumkin bo'lgan maxsus xatoliklarni ushlash (agar mavjud bo'lsa)
-                 // Masalan, stol band bo'lsa yoki buyurtma bog'langan bo'lsa
-                 // if (data.response?.status === 400) { ... }
+                 // Catch specific backend errors if any (e.g., table is occupied)
+                 // if (data.response?.status === 400 && data.response?.data?.detail) { ... }
                  handleApiError(data, `Stol "${tableName}" (ID: ${tableId}) ni o'chirishda`);
                  return `Stolni o'chirishda xatolik!`;
             }}
@@ -1509,14 +1459,13 @@ export default function AdminDashboard() {
         setTableToDelete(null);
         setIsDeletingTable(false);
     });
-  }; // confirmDeleteTable tugadi
-  // --- Stollar Action Handlers Yakuni ---
-
+  };
 
   // --- Rendering Logic ---
 
   const safeArray = (data) => (Array.isArray(data) ? data : []);
 
+  // Derived states for rendering, ensuring they are always arrays
   const displayedOrders = showAllOrders ? safeArray(orders) : safeArray(recentOrders);
   const validSalesData = safeArray(salesData);
   const validPaymentMethods = safeArray(paymentMethods);
@@ -1528,28 +1477,27 @@ export default function AdminDashboard() {
   const validProducts = safeArray(products);
   const validRolesList = safeArray(rolesList);
   const validTopProducts = safeArray(topProducts);
-  const validCategories = safeArray(categories); // Bu endi ishlatiladi
+  const validCategories = safeArray(categories);
   const validProductReportData = safeArray(productReportData);
   const validCustomerReport = safeArray(customerReport);
-  const validTables = safeArray(tables); // YANGI: Stollar uchun
+  const validTables = safeArray(tables);
 
   // Loading state or redirect if not authenticated
   if (!isClient || !token) {
-    // Agar foydalanuvchi allaqachon /auth sahifasida bo'lsa, hech narsa ko'rsatilmaydi
+    // Avoid showing loader if already on auth page, prevents flicker
     if (typeof window !== 'undefined' && window.location.pathname === '/auth') {
       return null;
     }
-    // Aks holda, yuklanish indikatorini ko'rsatish
     return (
       <div className="flex h-screen items-center justify-center bg-slate-100 dark:bg-slate-950">
         <Loader2 className="h-12 w-12 animate-spin text-sky-500" />
-        <ToastContainer /> {/* Auth sahifasida bo'lmasa ham Toast ko'rinishi uchun */}
+        <ToastContainer /> {/* Show toasts even during loading/redirect */}
       </div>
     );
   }
 
   // Main authenticated content
-  return ( // Asosiy return boshlanishi
+  return (
     <div className="flex h-screen bg-slate-100 dark:bg-slate-950">
       <ToastContainer
         position="top-right" autoClose={4000} hideProgressBar={false} newestOnTop={false}
@@ -1573,9 +1521,7 @@ export default function AdminDashboard() {
               <Button variant={activeTab === "orders" ? "secondary" : "ghost"} className={`w-full justify-start ${activeTab === 'orders' ? 'bg-slate-700 dark:bg-slate-600 text-white' : 'hover:bg-slate-700/50 dark:hover:bg-slate-700 text-slate-300 hover:text-white'}`} onClick={() => setActiveTab("orders")}><ShoppingCart className="mr-2 h-4 w-4" />Buyurtmalar</Button>
               <Button variant={activeTab === "products" ? "secondary" : "ghost"} className={`w-full justify-start ${activeTab === 'products' ? 'bg-slate-700 dark:bg-slate-600 text-white' : 'hover:bg-slate-700/50 dark:hover:bg-slate-700 text-slate-300 hover:text-white'}`} onClick={() => setActiveTab("products")}><Package className="mr-2 h-4 w-4" />Mahsulotlar</Button>
               <Button variant={activeTab === "categories" ? "secondary" : "ghost"} className={`w-full justify-start ${activeTab === 'categories' ? 'bg-slate-700 dark:bg-slate-600 text-white' : 'hover:bg-slate-700/50 dark:hover:bg-slate-700 text-slate-300 hover:text-white'}`} onClick={() => setActiveTab("categories")}><LayoutGrid className="mr-2 h-4 w-4" />Kategoriyalar</Button>
-              {/* --- YANGI: Stollar menyusi --- */}
               <Button variant={activeTab === "tables" ? "secondary" : "ghost"} className={`w-full justify-start ${activeTab === 'tables' ? 'bg-slate-700 dark:bg-slate-600 text-white' : 'hover:bg-slate-700/50 dark:hover:bg-slate-700 text-slate-300 hover:text-white'}`} onClick={() => setActiveTab("tables")}><Armchair className="mr-2 h-4 w-4" />Stollar</Button>
-              {/* --- Stollar menyusi yakuni --- */}
             </div>
             <h2 className="mb-2 mt-6 px-4 text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">Tizim</h2>
             <div className="space-y-1">
@@ -1614,7 +1560,7 @@ export default function AdminDashboard() {
                     { name: 'orders', label: 'Buyurtmalar', icon: ShoppingCart },
                     { name: 'products', label: 'Mahsulotlar', icon: Package },
                     { name: 'categories', label: 'Kategoriyalar', icon: LayoutGrid },
-                    { name: 'tables', label: 'Stollar', icon: Armchair }, // --- YANGI: Stollar mobil menyusi ---
+                    { name: 'tables', label: 'Stollar', icon: Armchair },
                   ].map(item => (
                     <Button key={item.name} variant={activeTab === item.name ? "secondary" : "ghost"} className={`w-full justify-start ${activeTab === item.name ? 'bg-slate-700 dark:bg-slate-600 text-white' : 'hover:bg-slate-700/50 dark:hover:bg-slate-700 text-slate-300 hover:text-white'}`} onClick={() => { setActiveTab(item.name); setShowMobileSidebar(false) }}><item.icon className="mr-2 h-4 w-4" />{item.label}</Button>
                   ))}
@@ -1642,7 +1588,10 @@ export default function AdminDashboard() {
             <Button variant="ghost" size="icon" onClick={() => setShowMobileSidebar(true)}><Menu className="h-6 w-6" /></Button>
             <div className="flex items-center"><Store className="h-6 w-6 text-sky-400" /><h1 className="ml-2 text-lg font-bold">SmartResto</h1></div>
           </div>
-          <div className="flex flex-grow items-center justify-end gap-4"> {/* Use flex-grow and justify-end */}
+          <div className="hidden md:flex"> {/* Hidden on mobile, shown on md+ */}
+            {/* Desktop header content can go here if needed, or leave empty */}
+          </div>
+          <div className="flex items-center justify-end gap-4"> {/* Always shown, adjust justification */}
             <Button variant="outline" size="sm" className="hidden md:inline-flex gap-1 text-sm">
               <Calendar className="h-4 w-4" />{new Date().toLocaleDateString("uz-UZ", { day: '2-digit', month: 'long', year: 'numeric' })}
             </Button>
@@ -1824,11 +1773,11 @@ export default function AdminDashboard() {
                             <TableCell className="text-right">{parseFloat(order.final_price || 0).toLocaleString()} so'm</TableCell>
                             <TableCell className="hidden md:table-cell">
                                 <Badge variant={
-                                    order.status === 'paid' ? 'success' :
-                                    order.status === 'completed' ? 'success' :
+                                    order.status === 'paid' || order.status === 'completed' ? 'success' :
                                     order.status === 'cancelled' ? 'destructive' :
                                     order.status === 'pending' ? 'warning' :
                                     order.status === 'ready' ? 'info' :
+                                    order.status === 'preparing' ? 'info' :
                                     order.status === 'new' ? 'secondary' :
                                     'outline'
                                 }>
@@ -1848,24 +1797,11 @@ export default function AdminDashboard() {
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="end">
                                     <DropdownMenuItem onClick={() => handleShowOrderDetails(order.id)}>Batafsil</DropdownMenuItem>
-                                    <DropdownMenuItem onClick={async () => {
-                                        const headers = getAuthHeader(router);
-                                        if (!headers) return;
-                                        setIsLoadingOrderDetails(true);
-                                        try {
-                                            const response = await axios.get(`https://oshxonacopy.pythonanywhere.com/api/orders/${order.id}/`, { headers });
-                                            printReceipt(response.data);
-                                        } catch (err) {
-                                            handleApiError(err, `Buyurtma #${order.id} tafsilotlarini chop etish uchun olishda`);
-                                            toast.error("Chekni chop etish uchun ma'lumotlar yuklanmadi.");
-                                        } finally {
-                                           setIsLoadingOrderDetails(false);
-                                        }
-                                    }}>
-                                    Chek chop etish
+                                    <DropdownMenuItem onClick={() => printReceipt(order)} disabled={!order}> {/* Simplified print call */}
+                                        Chek chop etish
                                     </DropdownMenuItem>
-                                    {/* === BEKOR QILISH BANDI === */}
-                                    {(order.status === 'pending' || order.status === 'processing' || order.status === 'ready' || order.status === 'new') && (
+                                    {/* Cancel option only if order is in a cancellable state */}
+                                    {(order.status === 'pending' || order.status === 'processing' || order.status === 'ready' || order.status === 'new' || order.status === 'preparing') && (
                                     <DropdownMenuItem
                                         onClick={() => {
                                           if (confirm(`Haqiqatan ham #${order.id} raqamli buyurtmani bekor qilmoqchimisiz? Bu amalni qaytarib bo'lmaydi.`)) {
@@ -1878,7 +1814,6 @@ export default function AdminDashboard() {
                                         Bekor qilish
                                     </DropdownMenuItem>
                                     )}
-                                    {/* === BEKOR QILISH BANDI YAKUNI === */}
                                 </DropdownMenuContent>
                                 </DropdownMenu>
                             </TableCell>
@@ -1947,11 +1882,11 @@ export default function AdminDashboard() {
                             <TableCell className="text-right">{parseFloat(order.final_price || 0).toLocaleString()} so'm</TableCell>
                             <TableCell className="hidden md:table-cell">
                                 <Badge variant={
-                                    order.status === 'paid' ? 'success' :
-                                    order.status === 'completed' ? 'success' :
+                                    order.status === 'paid' || order.status === 'completed' ? 'success' :
                                     order.status === 'cancelled' ? 'destructive' :
                                     order.status === 'pending' ? 'warning' :
                                     order.status === 'ready' ? 'info' :
+                                    order.status === 'preparing' ? 'info' :
                                     order.status === 'new' ? 'secondary' :
                                     'outline'
                                 }>
@@ -1971,24 +1906,10 @@ export default function AdminDashboard() {
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="end">
                                     <DropdownMenuItem onClick={() => handleShowOrderDetails(order.id)}>Batafsil</DropdownMenuItem>
-                                    <DropdownMenuItem onClick={async () => {
-                                        const headers = getAuthHeader(router);
-                                        if (!headers) return;
-                                        setIsLoadingOrderDetails(true);
-                                        try {
-                                            const response = await axios.get(`https://oshxonacopy.pythonanywhere.com/api/orders/${order.id}/`, { headers });
-                                            printReceipt(response.data);
-                                        } catch (err) {
-                                            handleApiError(err, `Buyurtma #${order.id} tafsilotlarini chop etish uchun olishda`);
-                                            toast.error("Chekni chop etish uchun ma'lumotlar yuklanmadi.");
-                                        } finally {
-                                            setIsLoadingOrderDetails(false);
-                                        }
-                                    }}>
-                                    Chek chop etish
+                                    <DropdownMenuItem onClick={() => printReceipt(order)} disabled={!order}>
+                                        Chek chop etish
                                     </DropdownMenuItem>
-                                     {/* === BEKOR QILISH BANDI === */}
-                                    {(order.status === 'pending' || order.status === 'processing' || order.status === 'ready' || order.status === 'new') && (
+                                    {(order.status === 'pending' || order.status === 'processing' || order.status === 'ready' || order.status === 'new' || order.status === 'preparing') && (
                                         <DropdownMenuItem
                                             onClick={() => {
                                               if (confirm(`Haqiqatan ham #${order.id} raqamli buyurtmani bekor qilmoqchimisiz? Bu amalni qaytarib bo'lmaydi.`)) {
@@ -2001,7 +1922,6 @@ export default function AdminDashboard() {
                                             Bekor qilish
                                         </DropdownMenuItem>
                                     )}
-                                    {/* === BEKOR QILISH BANDI YAKUNI === */}
                                 </DropdownMenuContent>
                                 </DropdownMenu>
                             </TableCell>
@@ -2057,12 +1977,17 @@ export default function AdminDashboard() {
                         validProducts.map((product) => (
                             <TableRow key={product.id}>
                             <TableCell className="font-medium flex items-center gap-2">
-                                <img
-                                src={product.image || "/placeholder-product.jpg"}
-                                alt={product.name || "Mahsulot"}
-                                className="w-8 h-8 rounded-sm object-cover"
-                                onError={(e) => { (e.target as HTMLImageElement).src = "/placeholder-product.jpg"; }} // Type assertion
-                                />
+                                <Avatar className="h-8 w-8 rounded-sm">
+                                    <AvatarImage
+                                      src={product.image || "/placeholder-product.jpg"}
+                                      alt={product.name || "Mahsulot"}
+                                      className="object-cover"
+                                      onError={(e) => { (e.target as HTMLImageElement).src = "/placeholder-product.jpg"; }}
+                                    />
+                                    <AvatarFallback className="rounded-sm bg-muted text-muted-foreground text-xs">
+                                        {(product.name || '?').substring(0, 2).toUpperCase()}
+                                    </AvatarFallback>
+                                </Avatar>
                                 <span>{product.name || "Noma'lum"}</span>
                             </TableCell>
                             <TableCell className="text-right">{(product.price || 0).toLocaleString()} so'm</TableCell>
@@ -2082,13 +2007,11 @@ export default function AdminDashboard() {
                                     </Button>
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="end">
-                                    {/* === MAHSULOT TAHRIRLASH BANDI === */}
                                     <DropdownMenuItem onClick={() => handleEditProductClick(product)}>
                                         <Edit className="mr-2 h-4 w-4"/> Tahrirlash
                                     </DropdownMenuItem>
-                                    {/* === MAHSULOT TAHRIRLASH BANDI YAKUNI === */}
                                     <DropdownMenuItem onClick={() => handleDeleteProduct(product)} className="text-red-600 focus:text-red-700 focus:bg-red-100 dark:focus:bg-red-900/50 dark:focus:text-red-400">
-                                       <Trash2 className="mr-2 h-4 w-4"/> O'chirish {/* YANGI: Ikonka */}
+                                       <Trash2 className="mr-2 h-4 w-4"/> O'chirish
                                     </DropdownMenuItem>
                                 </DropdownMenuContent>
                                 </DropdownMenu>
@@ -2145,9 +2068,7 @@ export default function AdminDashboard() {
                             <TableRow key={employee.id}>
                             <TableCell className="font-medium">{employee.first_name} {employee.last_name}</TableCell>
                             <TableCell className="hidden sm:table-cell">{employee.username || "N/A"}</TableCell>
-                            {/* --- O'ZGARTIRILGAN QISM (Xodimlar roli) --- */}
                             <TableCell className="hidden md:table-cell">{translateRole(employee.role?.name)}</TableCell>
-                            {/* --- O'ZGARTIRILGAN QISM YAKUNI --- */}
                             <TableCell className="text-right">
                                 <Badge variant={employee.is_active ? "success" : "destructive"}>
                                 {employee.is_active ? "Faol" : "Faol emas"}
@@ -2166,7 +2087,7 @@ export default function AdminDashboard() {
                                       <Edit className="mr-2 h-4 w-4" /> Tahrirlash
                                     </DropdownMenuItem>
                                     <DropdownMenuItem onClick={() => handleDeleteEmployee(employee)} className="text-red-600 focus:text-red-700 focus:bg-red-100 dark:focus:bg-red-900/50 dark:focus:text-red-400">
-                                      <Trash2 className="mr-2 h-4 w-4"/> O'chirish {/* YANGI: Ikonka */}
+                                      <Trash2 className="mr-2 h-4 w-4"/> O'chirish
                                     </DropdownMenuItem>
                                 </DropdownMenuContent>
                                 </DropdownMenu>
@@ -2219,9 +2140,7 @@ export default function AdminDashboard() {
                       {validRolesList.length > 0 ? (
                         validRolesList.map((role) => (
                             <TableRow key={role.id}>
-                            {/* --- O'ZGARTIRILGAN QISM (Rollar ro'yxati nomi) --- */}
                             <TableCell className="font-medium">{translateRole(role.name)}</TableCell>
-                            {/* --- O'ZGARTIRILGAN QISM YAKUNI --- */}
                             <TableCell className="text-right">{role.employee_count ?? 0}</TableCell>
                             <TableCell className="text-right">
                                 <DropdownMenu>
@@ -2235,8 +2154,12 @@ export default function AdminDashboard() {
                                     <DropdownMenuItem onClick={() => handleEditRoleClick(role)}>
                                       <Edit className="mr-2 h-4 w-4" /> Tahrirlash
                                     </DropdownMenuItem>
-                                    <DropdownMenuItem onClick={() => handleDeleteRole(role)} className="text-red-600 focus:text-red-700 focus:bg-red-100 dark:focus:bg-red-900/50 dark:focus:text-red-400" disabled={role.employee_count > 0 || (role.count && role.count > 0)}>
-                                      <Trash2 className="mr-2 h-4 w-4"/> O'chirish {/* YANGI: Ikonka */}
+                                    <DropdownMenuItem
+                                      onClick={() => handleDeleteRole(role)}
+                                      className="text-red-600 focus:text-red-700 focus:bg-red-100 dark:focus:bg-red-900/50 dark:focus:text-red-400"
+                                      disabled={(role.employee_count ?? 0) > 0} // Disable if count > 0
+                                    >
+                                      <Trash2 className="mr-2 h-4 w-4"/> O'chirish
                                     </DropdownMenuItem>
                                 </DropdownMenuContent>
                                 </DropdownMenu>
@@ -2257,7 +2180,7 @@ export default function AdminDashboard() {
             </div>
           )}
 
-          {/* --- YANGI: Categories Tab --- */}
+          {/* Categories Tab */}
           {activeTab === "categories" && (
             <div className="space-y-6">
               <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
@@ -2282,8 +2205,6 @@ export default function AdminDashboard() {
                       <TableRow>
                         <TableHead className="w-[80px]">ID</TableHead>
                         <TableHead>Kategoriya nomi</TableHead>
-                        {/* Slug backend tomonidan avtomatik yaratilganligi uchun ko'rsatish shart emas */}
-                        {/* <TableHead className="hidden sm:table-cell">Slug</TableHead> */}
                         <TableHead className="text-right">Amallar</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -2293,7 +2214,6 @@ export default function AdminDashboard() {
                             <TableRow key={category.id}>
                             <TableCell className="font-medium">{category.id}</TableCell>
                             <TableCell>{category.name || "Noma'lum"}</TableCell>
-                            {/* <TableCell className="hidden sm:table-cell">{category.slug || "N/A"}</TableCell> */}
                             <TableCell className="text-right">
                                 <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
@@ -2307,7 +2227,7 @@ export default function AdminDashboard() {
                                       <Edit className="mr-2 h-4 w-4" /> Tahrirlash
                                     </DropdownMenuItem>
                                     <DropdownMenuItem onClick={() => handleDeleteCategoryClick(category)} className="text-red-600 focus:text-red-700 focus:bg-red-100 dark:focus:bg-red-900/50 dark:focus:text-red-400">
-                                      <Trash2 className="mr-2 h-4 w-4"/> O'chirish {/* YANGI: Ikonka */}
+                                      <Trash2 className="mr-2 h-4 w-4"/> O'chirish
                                     </DropdownMenuItem>
                                 </DropdownMenuContent>
                                 </DropdownMenu>
@@ -2327,9 +2247,8 @@ export default function AdminDashboard() {
               </Card>
             </div>
           )}
-          {/* --- Kategoriyalar Tab Yakuni --- */}
 
-          {/* --- YANGI: Stollar Tab --- */}
+          {/* Tables Tab */}
           {activeTab === "tables" && (
             <div className="space-y-6">
               <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
@@ -2404,7 +2323,6 @@ export default function AdminDashboard() {
               </Card>
             </div>
           )}
-          {/* --- Stollar Tab Yakuni --- */}
 
           {/* Reports Tab */}
           {activeTab === "reports" && (
@@ -2418,7 +2336,7 @@ export default function AdminDashboard() {
                   <TabsTrigger value="charts">Diagrammalar</TabsTrigger>
                 </TabsList>
 
-                {/* Hisobotlar > Xodimlar */}
+                {/* Reports > Employees */}
                 <TabsContent value="employees" className="space-y-4">
                   <Card>
                     <CardHeader>
@@ -2458,7 +2376,7 @@ export default function AdminDashboard() {
                   </Card>
                 </TabsContent>
 
-                {/* Hisobotlar > Mahsulotlar */}
+                {/* Reports > Products */}
                 <TabsContent value="products" className="space-y-4">
                   <Card>
                     <CardHeader>
@@ -2472,7 +2390,7 @@ export default function AdminDashboard() {
                             <TableHead>Mahsulot</TableHead>
                             <TableHead className="text-right">Sotilgan miqdor</TableHead>
                             <TableHead className="text-right">Umumiy savdo</TableHead>
-                            <TableHead className="text-right hidden md:table-cell">Foyda</TableHead>
+                            <TableHead className="text-right hidden md:table-cell">Foyda (taxminiy)</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -2498,7 +2416,7 @@ export default function AdminDashboard() {
                   </Card>
                 </TabsContent>
 
-                {/* Hisobotlar > Mijozlar */}
+                {/* Reports > Customers */}
                 <TabsContent value="customers" className="space-y-4">
                   <Card>
                     <CardHeader>
@@ -2538,7 +2456,7 @@ export default function AdminDashboard() {
                   </Card>
                 </TabsContent>
 
-                {/* Hisobotlar > Diagrammalar */}
+                {/* Reports > Charts */}
                 <TabsContent value="charts" className="space-y-4">
                   <div className="grid gap-4 md:grid-cols-2">
                     <Card>
@@ -2563,7 +2481,8 @@ export default function AdminDashboard() {
                                   enabled: true,
                                   formatter: (val, opts) => {
                                       const name = opts.w.globals.labels[opts.seriesIndex];
-                                      return val > 5 ? `${name}: ${val.toFixed(1)}%` : `${val.toFixed(1)}%`;
+                                      // Show name only if percentage is significant enough
+                                      return val > 7 ? `${name}: ${val.toFixed(1)}%` : `${val.toFixed(1)}%`;
                                   },
                                   style: { fontSize: '11px', fontWeight: 'bold', colors: ["#fff"] },
                                   dropShadow: { enabled: true, top: 1, left: 1, blur: 1, color: '#000', opacity: 0.45 }
@@ -2604,7 +2523,7 @@ export default function AdminDashboard() {
                                   enabled: true,
                                   formatter: (val, opts) => {
                                       const name = opts.w.globals.labels[opts.seriesIndex];
-                                      return val > 5 ? `${name}: ${val.toFixed(1)}%` : `${val.toFixed(1)}%`;
+                                      return val > 7 ? `${name}: ${val.toFixed(1)}%` : `${val.toFixed(1)}%`;
                                   },
                                    style: { fontSize: '11px', fontWeight: 'bold', colors: ["#fff"] },
                                    dropShadow: { enabled: true, top: 1, left: 1, blur: 1, color: '#000', opacity: 0.45 }
@@ -2746,7 +2665,7 @@ export default function AdminDashboard() {
                      </div>
 
                       <div className="flex justify-end">
-                        <Button type="submit">Saqlash</Button> {/* Use type="submit" */}
+                        <Button type="submit">Saqlash</Button>
                       </div>
                     </form>
                   )}
@@ -2814,7 +2733,6 @@ export default function AdminDashboard() {
                 <SelectContent>
                   {validFetchedRoles.length > 0 ? validFetchedRoles.map((role) => (
                     <SelectItem key={role.id} value={role.id.toString()}>
-                      {/* --- Rol nomini tarjima qilish (Select ichida) --- */}
                       {translateRole(role.name)}
                     </SelectItem>
                   )) : <SelectItem value="" disabled>Rollar topilmadi</SelectItem>}
@@ -2825,7 +2743,7 @@ export default function AdminDashboard() {
               <Label htmlFor="add-pin_code" className="text-right">PIN-kod*</Label>
               <Input
                 id="add-pin_code"
-                type="password" // Use password type for masking
+                type="password"
                 pattern="\d{4}"
                 value={newEmployee.pin_code}
                 onChange={(e) => {
@@ -2836,13 +2754,12 @@ export default function AdminDashboard() {
                 placeholder="4 raqamli PIN"
                 maxLength={4}
                 required
-                autoComplete="new-password" // Prevent browser autofill issues
+                autoComplete="new-password"
               />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="add-is_active" className="text-right">Faol</Label>
               <div className="col-span-3 flex items-center">
-                 {/* Ishlatilgan Switch */}
                 <Switch
                     id="add-is_active"
                     checked={newEmployee.is_active}
@@ -2919,7 +2836,6 @@ export default function AdminDashboard() {
                   <SelectContent>
                     {validFetchedRoles.length > 0 ? validFetchedRoles.map((role) => (
                       <SelectItem key={role.id} value={role.id.toString()}>
-                         {/* --- Rol nomini tarjima qilish (Select ichida) --- */}
                         {translateRole(role.name)}
                       </SelectItem>
                     )) : <SelectItem value="" disabled>Rollar topilmadi</SelectItem>}
@@ -2932,7 +2848,7 @@ export default function AdminDashboard() {
                   id="edit-pin_code"
                   type="password"
                   pattern="\d{4}"
-                  value={editingEmployee.pin_code || ''} // PIN-kod maydoni
+                  value={editingEmployee.pin_code || ''}
                   onChange={(e) => {
                     const value = e.target.value.replace(/\D/g, '').slice(0, 4);
                     setEditingEmployee({ ...editingEmployee, pin_code: value });
@@ -2940,7 +2856,7 @@ export default function AdminDashboard() {
                   className="col-span-3"
                   placeholder="Yangi 4 raqamli PIN"
                   maxLength={4}
-                  required // Tahrirlashda PIN majburiy
+                  required
                   autoComplete="new-password"
                 />
               </div>
@@ -3002,7 +2918,6 @@ export default function AdminDashboard() {
           <DialogHeader>
             <DialogTitle>Rolni o'chirishni tasdiqlang</DialogTitle>
             <DialogDescription>
-              {/* --- Rol nomini tarjima qilish (Dialog ichida) --- */}
               Haqiqatan ham <strong>"{translateRole(roleToDelete?.name)}"</strong> rolini o'chirishni xohlaysizmi? Bu amalni qaytarib bo'lmaydi.
               {roleToDelete?.employee_count > 0 && (
                 <span className="block mt-2 text-red-600 dark:text-red-400 font-semibold">
@@ -3018,9 +2933,9 @@ export default function AdminDashboard() {
             <Button
               variant="destructive"
               onClick={confirmDeleteRole}
-              disabled={roleToDelete?.employee_count > 0} // Disable delete if employees assigned
+              disabled={roleToDelete?.employee_count > 0}
             >
-             <Trash2 className="mr-2 h-4 w-4"/> O'chirish {/* YANGI: Ikonka */}
+             <Trash2 className="mr-2 h-4 w-4"/> O'chirish
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -3084,7 +2999,6 @@ export default function AdminDashboard() {
                   <SelectValue placeholder="Kategoriyani tanlang" />
                 </SelectTrigger>
                 <SelectContent>
-                  {/* --- Kategoriya Select yangilandi --- */}
                   {validCategories.length > 0 ? validCategories.map((category) => (
                     <SelectItem key={category.id} value={category.id.toString()}>
                       {category.name || "Noma'lum"}
@@ -3114,7 +3028,7 @@ export default function AdminDashboard() {
               />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="product_is_active_add" className="text-right">Faol</Label> {/* Unique ID */}
+              <Label htmlFor="product_is_active_add" className="text-right">Faol</Label>
               <div className="col-span-3 flex items-center">
                 <Switch
                   id="product_is_active_add"
@@ -3132,9 +3046,7 @@ export default function AdminDashboard() {
         </DialogContent>
       </Dialog>
 
-      {/* ========================================================== */}
-      {/* ------ MAHSULOT TAHRIRLASH MODALI ------ */}
-      {/* ========================================================== */}
+      {/* Edit Product Dialog */}
       <Dialog open={showEditProductDialog} onOpenChange={setShowEditProductDialog}>
         <DialogContent className="sm:max-w-[425px]">
          <form onSubmit={(e) => { e.preventDefault(); handleUpdateProduct(); }}>
@@ -3148,7 +3060,7 @@ export default function AdminDashboard() {
             </div>
           ) : editingProduct ? (
             <div className="grid gap-4 py-4">
-              {/* Nomi */}
+              {/* Name */}
               <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="edit-product_name" className="text-right">Nomi*</Label>
                 <Input
@@ -3160,7 +3072,7 @@ export default function AdminDashboard() {
                   required
                 />
               </div>
-              {/* Narx */}
+              {/* Price */}
               <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="edit-price" className="text-right">Narx*</Label>
                 <Input
@@ -3175,7 +3087,7 @@ export default function AdminDashboard() {
                   required
                 />
               </div>
-              {/* Tannarx */}
+              {/* Cost Price */}
               <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="edit-cost_price" className="text-right">Tannarx</Label>
                 <Input
@@ -3189,7 +3101,7 @@ export default function AdminDashboard() {
                   step="100"
                 />
               </div>
-              {/* Kategoriya */}
+              {/* Category */}
               <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="edit-category_id" className="text-right">Kategoriya*</Label>
                 <Select
@@ -3201,7 +3113,6 @@ export default function AdminDashboard() {
                     <SelectValue placeholder="Kategoriyani tanlang" />
                   </SelectTrigger>
                   <SelectContent>
-                    {/* --- Kategoriya Select yangilandi --- */}
                     {validCategories.length > 0 ? validCategories.map((category) => (
                       <SelectItem key={category.id} value={category.id.toString()}>
                         {category.name || "Noma'lum"}
@@ -3210,7 +3121,7 @@ export default function AdminDashboard() {
                   </SelectContent>
                 </Select>
               </div>
-              {/* Tavsif */}
+              {/* Description */}
               <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="edit-description" className="text-right">Tavsif</Label>
                 <Input
@@ -3221,29 +3132,32 @@ export default function AdminDashboard() {
                   placeholder="Mahsulot haqida qisqacha"
                 />
               </div>
-              {/* Rasm */}
+              {/* Image */}
               <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="edit-image" className="text-right">Rasm</Label>
                 <div className="col-span-3 space-y-2">
-                    {/* Mavjud rasmni ko'rsatish (agar bo'lsa) */}
+                    {/* Show current image */}
                     {editingProduct.image && typeof editingProduct.image === 'string' && (
-                         <img src={editingProduct.image} alt="Mavjud rasm" className="h-16 w-16 object-cover rounded-md"/>
+                         <Avatar className="h-16 w-16 rounded-md">
+                             <AvatarImage src={editingProduct.image} alt="Mavjud rasm" className="object-cover"/>
+                             <AvatarFallback className="rounded-md bg-muted">?</AvatarFallback>
+                         </Avatar>
                     )}
-                     {/* Yangi rasm tanlash */}
+                     {/* Input for new image */}
                     <Input
                         id="edit-image"
                         type="file"
                         accept="image/*"
                         onChange={(e) => {
                             const file = e.target.files ? e.target.files[0] : null;
-                            setEditingProduct({ ...editingProduct, newImage: file }); // Yangi rasmni 'newImage' ga saqlash
+                            setEditingProduct({ ...editingProduct, newImage: file }); // Store new file in newImage
                         }}
                         className="text-sm file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-sky-50 file:text-sky-700 hover:file:bg-sky-100"
                     />
                      <p className="text-xs text-muted-foreground">Yangi rasm tanlang (ixtiyoriy).</p>
                 </div>
               </div>
-              {/* Faol holati */}
+              {/* Active Status */}
               <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="edit-product_is_active" className="text-right">Faol</Label>
                 <div className="col-span-3 flex items-center">
@@ -3268,50 +3182,83 @@ export default function AdminDashboard() {
           </form>
         </DialogContent>
       </Dialog>
-      {/* ========================================================== */}
-      {/* ------ MAHSULOT TAHRIRLASH MODALI YAKUNI ------ */}
-      {/* ========================================================== */}
 
-
-      {/* Order Details Modal */}
+      {/* ========================================================== */}
+      {/* ------ YANGILANGAN ORDER DETAILS MODAL ------ */}
+      {/* ========================================================== */}
       <Dialog open={showOrderDetailsModal} onOpenChange={handleModalClose}>
-        <DialogContent className="sm:max-w-[600px] max-h-[90vh] flex flex-col">
-          <DialogHeader>
+        <DialogContent className="sm:max-w-[700px] md:max-w-[800px] lg:max-w-[900px] max-h-[90vh] flex flex-col">
+          <DialogHeader className="flex-shrink-0 px-6 pt-6"> {/* Header padding */}
             <DialogTitle>Buyurtma #{selectedOrderDetails?.id || '...'}</DialogTitle>
             <DialogDescription>Buyurtma haqida batafsil ma'lumot.</DialogDescription>
           </DialogHeader>
 
-          <ScrollArea className="flex-grow basis-0 px-6 py-4">
+          {/* Scrollable Content Area */}
+          <ScrollArea className="flex-grow basis-auto px-6 py-4 border-t border-b"> {/* Padding and borders */}
             {isLoadingOrderDetails ? (
-                <div className="flex items-center justify-center h-full">
-                    <Loader2 className="h-8 w-8 animate-spin text-sky-500" />
+                <div className="flex items-center justify-center h-40">
+                    <Loader2 className="h-10 w-10 animate-spin text-sky-500" />
+                    <p className="ml-3 text-muted-foreground">Yuklanmoqda...</p>
                 </div>
             ) : orderDetailsError ? (
-                <div className="text-center text-red-600 dark:text-red-400">
-                    {orderDetailsError}
+                <div className="text-center text-red-600 dark:text-red-400 py-10">
+                    <p className="font-semibold">Xatolik!</p>
+                    <p>{orderDetailsError}</p>
+                    {/* Re-fetch button if an ID exists */}
+                    {selectedOrderDetails?.id && (
+                      <Button variant="outline" size="sm" className="mt-4" onClick={() => handleShowOrderDetails(selectedOrderDetails.id)}>
+                          Qayta urinish
+                      </Button>
+                    )}
                 </div>
             ) : selectedOrderDetails ? (
-                <div className="space-y-4">
-                    {/* Asosiy ma'lumotlar */}
-                    <div className="grid gap-x-4 gap-y-2 grid-cols-1 sm:grid-cols-2">
-                        <div><p className="text-xs text-muted-foreground">ID</p><p className="text-sm font-medium">{selectedOrderDetails.id}</p></div>
-                        <div><p className="text-xs text-muted-foreground">Buyurtma turi</p><p className="text-sm font-medium">{selectedOrderDetails.order_type_display || selectedOrderDetails.order_type || 'N/A'}</p></div>
-                        <div><p className="text-xs text-muted-foreground">Holat</p><Badge variant={ selectedOrderDetails.status === 'paid' ? 'success' : selectedOrderDetails.status === 'completed' ? 'success' : selectedOrderDetails.status === 'cancelled' ? 'destructive' : selectedOrderDetails.status === 'pending' ? 'warning' : selectedOrderDetails.status === 'ready' ? 'info' : selectedOrderDetails.status === 'new' ? 'secondary' : 'outline' }>{selectedOrderDetails.status_display || selectedOrderDetails.status || 'N/A'}</Badge></div>
-                        <div><p className="text-xs text-muted-foreground">Mijoz</p><p className="text-sm font-medium">{selectedOrderDetails.customer_name || 'Noma\'lum'}</p></div>
-                        {selectedOrderDetails.customer_phone && (<div><p className="text-xs text-muted-foreground">Telefon</p><p className="text-sm font-medium">{selectedOrderDetails.customer_phone}</p></div>)}
-                        {selectedOrderDetails.customer_address && (<div><p className="text-xs text-muted-foreground">Manzil</p><p className="text-sm font-medium">{selectedOrderDetails.customer_address}</p></div>)}
-                        {selectedOrderDetails.table && (<div><p className="text-xs text-muted-foreground">Stol</p><p className="text-sm font-medium">{selectedOrderDetails.table.name || 'Noma\'lum stol'}</p></div>)}
-                        <div><p className="text-xs text-muted-foreground">Yaratilgan vaqt</p><p className="text-sm font-medium">{new Date(selectedOrderDetails.created_at).toLocaleString('uz-UZ', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</p></div>
-                        <div><p className="text-xs text-muted-foreground">Yangilangan vaqt</p><p className="text-sm font-medium">{new Date(selectedOrderDetails.updated_at).toLocaleString('uz-UZ', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</p></div>
-                        {/* --- Xodim rolini tarjima qilish (Order Details) --- */}
-                        {selectedOrderDetails.created_by && (<div><p className="text-xs text-muted-foreground">Xodim (Yaratgan)</p><p className="text-sm font-medium">{selectedOrderDetails.created_by.first_name || ''}{' '}{selectedOrderDetails.created_by.last_name || ''}{selectedOrderDetails.created_by.username ? ` (${selectedOrderDetails.created_by.username})` : ''}{selectedOrderDetails.created_by.role?.name ? ` [${translateRole(selectedOrderDetails.created_by.role.name)}]` : ''}</p></div>)}
+                // CONTENT WHEN DETAILS ARE LOADED
+                <div className="space-y-5">
+                    {/* Basic Info Section */}
+                    <div>
+                        <h3 className="text-lg font-semibold mb-3 text-slate-800 dark:text-slate-200">Asosiy ma'lumotlar</h3>
+                        <div className="grid gap-x-4 gap-y-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+                            <div><p className="text-xs text-muted-foreground">ID</p><p className="text-sm font-medium">{selectedOrderDetails.id}</p></div>
+                            <div><p className="text-xs text-muted-foreground">Buyurtma turi</p><p className="text-sm font-medium">{selectedOrderDetails.order_type_display || selectedOrderDetails.order_type || 'N/A'}</p></div>
+                            <div>
+                                <p className="text-xs text-muted-foreground">Holat</p>
+                                <Badge variant={
+                                    selectedOrderDetails.status === 'paid' || selectedOrderDetails.status === 'completed' ? 'success' :
+                                    selectedOrderDetails.status === 'cancelled' ? 'destructive' :
+                                    selectedOrderDetails.status === 'pending' ? 'warning' :
+                                    selectedOrderDetails.status === 'ready' || selectedOrderDetails.status === 'preparing' ? 'info' :
+                                    selectedOrderDetails.status === 'new' ? 'secondary' :
+                                    'outline'
+                                } className="text-sm px-2.5 py-0.5"> {/* Larger Badge */}
+                                {selectedOrderDetails.status_display || selectedOrderDetails.status || 'N/A'}
+                                </Badge>
+                            </div>
+                            <div><p className="text-xs text-muted-foreground">Mijoz</p><p className="text-sm font-medium">{selectedOrderDetails.customer_name || 'Noma\'lum'}</p></div>
+                            {selectedOrderDetails.customer_phone && (<div><p className="text-xs text-muted-foreground">Telefon</p><p className="text-sm font-medium">{selectedOrderDetails.customer_phone}</p></div>)}
+                            {selectedOrderDetails.customer_address && (<div className="lg:col-span-2"><p className="text-xs text-muted-foreground">Manzil</p><p className="text-sm font-medium">{selectedOrderDetails.customer_address}</p></div>)}
+                            {selectedOrderDetails.table && (<div><p className="text-xs text-muted-foreground">Stol</p><p className="text-sm font-medium">{selectedOrderDetails.table.name || 'Noma\'lum'} {selectedOrderDetails.table.zone ? `(${selectedOrderDetails.table.zone})` : ''}</p></div>)}
+                            <div><p className="text-xs text-muted-foreground">Yaratilgan vaqt</p><p className="text-sm font-medium">{new Date(selectedOrderDetails.created_at).toLocaleString('uz-UZ', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</p></div>
+                            <div><p className="text-xs text-muted-foreground">Yangilangan vaqt</p><p className="text-sm font-medium">{new Date(selectedOrderDetails.updated_at).toLocaleString('uz-UZ', { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</p></div>
+                            {/* Staff Info */}
+                            {selectedOrderDetails.created_by && (
+                                <div className="lg:col-span-full"> {/* Take full width on large screens */}
+                                    <p className="text-xs text-muted-foreground">Xodim (Yaratgan)</p>
+                                    <p className="text-sm font-medium">
+                                        {selectedOrderDetails.created_by.first_name || ''}{' '}
+                                        {selectedOrderDetails.created_by.last_name || ''}
+                                        {selectedOrderDetails.created_by.username ? ` (${selectedOrderDetails.created_by.username})` : ''}
+                                        {selectedOrderDetails.created_by.role?.name ? ` [${translateRole(selectedOrderDetails.created_by.role.name)}]` : ''}
+                                    </p>
+                                </div>
+                            )}
+                        </div>
                     </div>
 
-                     {selectedOrderDetails.payment ? (<>
-                        <Separator />
+                    {/* Payment Details Section (if payment exists) */}
+                    {selectedOrderDetails.payment ? (<>
                         <div>
-                            <h4 className="text-sm font-semibold mb-2">To'lov tafsilotlari</h4>
-                            <div className="grid gap-x-4 gap-y-2 grid-cols-1 sm:grid-cols-2">
+                            <h3 className="text-lg font-semibold mb-3 text-slate-800 dark:text-slate-200">To'lov tafsilotlari</h3>
+                            <div className="grid gap-x-4 gap-y-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
                                 <div><p className="text-xs text-muted-foreground">To'lov ID</p><p className="text-sm font-medium">{selectedOrderDetails.payment.id}</p></div>
                                 <div><p className="text-xs text-muted-foreground">To'lov usuli</p><p className="text-sm font-medium">{getPaymentMethodDisplay(selectedOrderDetails.payment.method)}</p></div>
                                 <div><p className="text-xs text-muted-foreground">To'langan summa</p><p className="text-sm font-medium">{(parseFloat(selectedOrderDetails.payment.amount || 0)).toLocaleString()} so'm</p></div>
@@ -3323,71 +3270,117 @@ export default function AdminDashboard() {
                             </div>
                         </div>
                     </>) : (<>
-                        <Separator />
-                        <p className="text-sm text-muted-foreground">To'lov ma'lumotlari mavjud emas.</p>
+                       {/* Message if no payment details */}
+                       <div>
+                           <h3 className="text-lg font-semibold mb-2 text-slate-800 dark:text-slate-200">To'lov</h3>
+                           <p className="text-sm text-muted-foreground">Bu buyurtma uchun to'lov ma'lumotlari mavjud emas.</p>
+                        </div>
                     </>)}
 
-
-                     {/* Mahsulotlar jadvali */}
-                     <Separator />
+                     {/* Items Table Section */}
                      <div>
-                        <h4 className="text-sm font-semibold mb-2">Mahsulotlar</h4>
-                        <Table>
-                            <TableHeader><TableRow><TableHead>Mahsulot</TableHead><TableHead className="text-right w-[60px]">Miqdor</TableHead><TableHead className="text-right w-[100px]">Narx</TableHead><TableHead className="text-right w-[100px]">Jami</TableHead></TableRow></TableHeader>
-                            <TableBody>
-                                {(Array.isArray(selectedOrderDetails.items) && selectedOrderDetails.items.length > 0) ? (
-                                selectedOrderDetails.items.map((item) => (
-                                    <TableRow key={item.id}>
-                                        <TableCell className="py-2 flex items-center gap-2">
-                                            {item.product_details?.image_url && (<img src={item.product_details.image_url} alt={item.product_details.name || ''} className="w-8 h-8 rounded-sm object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}/>)}
-                                            <span>{item.product_details?.name || `Mahsulot ID: ${item.product}` || 'Noma\'lum'}</span>
-                                        </TableCell>
-                                        <TableCell className="text-right py-2">{item.quantity || 0}</TableCell>
-                                        <TableCell className="text-right py-2">{(parseFloat(item.unit_price || 0)).toLocaleString()} so'm</TableCell>
-                                        <TableCell className="text-right py-2">{(parseFloat(item.total_price || 0)).toLocaleString()} so'm</TableCell>
+                        <h3 className="text-lg font-semibold mb-3 text-slate-800 dark:text-slate-200">Mahsulotlar</h3>
+                        <div className="overflow-x-auto rounded-md border"> {/* Add border and overflow */}
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead className="w-[50%] sm:w-[60%]">Mahsulot</TableHead>
+                                        <TableHead className="text-right w-[15%] sm:w-[10%]">Miqdor</TableHead>
+                                        <TableHead className="text-right w-[20%] sm:w-[15%]">Narx</TableHead>
+                                        <TableHead className="text-right w-[15%] sm:w-[15%]">Jami</TableHead>
                                     </TableRow>
-                                ))
-                                ) : (
-                                <TableRow><TableCell colSpan={4} className="h-16 text-center text-muted-foreground py-2">Mahsulotlar topilmadi.</TableCell></TableRow>
-                                )}
-                            </TableBody>
-                        </Table>
+                                </TableHeader>
+                                <TableBody>
+                                    {(Array.isArray(selectedOrderDetails.items) && selectedOrderDetails.items.length > 0) ? (
+                                    selectedOrderDetails.items.map((item) => (
+                                        <TableRow key={item.id}>
+                                            <TableCell className="py-2 flex items-center gap-3">
+                                                <Avatar className="h-10 w-10 rounded-md">
+                                                    <AvatarImage
+                                                      src={item.product_details?.image_url || "/placeholder-product.jpg"}
+                                                      alt={item.product_details?.name || 'Mahsulot'}
+                                                      className="object-cover"
+                                                      onError={(e) => { (e.target as HTMLImageElement).src = '/placeholder-product.jpg'; }}
+                                                    />
+                                                     <AvatarFallback className="rounded-md bg-muted text-muted-foreground text-xs">
+                                                        {(item.product_details?.name || '?').substring(0, 2).toUpperCase()}
+                                                    </AvatarFallback>
+                                                </Avatar>
+                                                <span className="font-medium">{item.product_details?.name || `Mahsulot ID: ${item.product}` || 'Noma\'lum'}</span>
+                                            </TableCell>
+                                            <TableCell className="text-right py-2">{item.quantity || 0}</TableCell>
+                                            <TableCell className="text-right py-2">{(parseFloat(item.unit_price || 0)).toLocaleString()}</TableCell>
+                                            <TableCell className="text-right py-2 font-medium">{(parseFloat(item.total_price || 0)).toLocaleString()}</TableCell>
+                                        </TableRow>
+                                    ))
+                                    ) : (
+                                    <TableRow><TableCell colSpan={4} className="h-16 text-center text-muted-foreground py-2">Mahsulotlar topilmadi.</TableCell></TableRow>
+                                    )}
+                                </TableBody>
+                            </Table>
+                        </div>
                     </div>
 
-                    <Separator />
-                    {/* Hisob-kitob qismi */}
-                     <div className="space-y-1 text-sm">
-                         <div className="flex justify-between"><span>Jami (Mahsulotlar):</span><span className="font-medium">{(selectedOrderDetails.items?.reduce((sum, item) => sum + parseFloat(item.total_price || 0), 0) || 0).toLocaleString()} so'm</span></div>
-                         {parseFloat(selectedOrderDetails.service_fee_percent || 0) > 0 && (<div className="flex justify-between"><span>Xizmat haqi ({selectedOrderDetails.service_fee_percent}%):</span><span className="font-medium">+ {((selectedOrderDetails.items?.reduce((sum, item) => sum + parseFloat(item.total_price || 0), 0) || 0) * (parseFloat(selectedOrderDetails.service_fee_percent || 0) / 100)).toLocaleString()} so'm</span></div>)}
-                         {parseFloat(selectedOrderDetails.tax_percent || 0) > 0 && (<div className="flex justify-between"><span>Soliq ({selectedOrderDetails.tax_percent}%):</span></div>)}
-                         <div className="flex justify-between font-semibold text-base pt-1 border-t mt-2"><span>Umumiy summa:</span><span>{(parseFloat(selectedOrderDetails.final_price || 0)).toLocaleString()} so'm</span></div>
+                    {/* Calculation Summary Section */}
+                     <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-md space-y-2 border dark:border-slate-700">
+                         <h4 className="text-base font-semibold mb-2 text-slate-700 dark:text-slate-300">Hisob-kitob</h4>
+                         <div className="flex justify-between text-sm">
+                             <span className="text-muted-foreground">Mahsulotlar jami:</span>
+                             <span className="font-medium">{(parseFloat(selectedOrderDetails.total_price || 0)).toLocaleString()} so'm</span>
+                         </div>
+                         {parseFloat(selectedOrderDetails.service_fee_percent || 0) > 0 && (
+                            <div className="flex justify-between text-sm">
+                                <span className="text-muted-foreground">Xizmat haqi ({selectedOrderDetails.service_fee_percent}%):</span>
+                                <span className="font-medium">+ {((parseFloat(selectedOrderDetails.total_price || 0)) * (parseFloat(selectedOrderDetails.service_fee_percent || 0) / 100)).toLocaleString()} so'm</span>
+                             </div>
+                         )}
+                         {/* Tax - uncomment if used and calculated */}
+                         {/* {parseFloat(selectedOrderDetails.tax_percent || 0) > 0 && (<div className="flex justify-between text-sm"><span className="text-muted-foreground">Soliq ({selectedOrderDetails.tax_percent}%):</span><span className="font-medium">+ {CALCULATED_TAX} so'm</span></div>)} */}
+                         <Separator className="my-2 bg-slate-200 dark:bg-slate-700" />
+                         <div className="flex justify-between font-bold text-base pt-1">
+                             <span>Umumiy summa:</span>
+                             <span>{(parseFloat(selectedOrderDetails.final_price || 0)).toLocaleString()} so'm</span>
+                         </div>
                      </div>
                 </div>
+             // END OF CONTENT WHEN DETAILS ARE LOADED
             ) : (
-                <div className="text-center text-muted-foreground py-10">Buyurtma ma'lumotlari topilmadi.</div>
+                // Fallback if not loading, no error, but no data (should rarely happen)
+                <div className="text-center text-muted-foreground py-10">
+                    Buyurtma ma'lumotlari topilmadi.
+                </div>
             )}
           </ScrollArea>
 
-          {/* Footer qismi */}
-          <DialogFooter className="pt-4 border-t flex-wrap gap-2 justify-end">
-              {/* Bekor qilish tugmasi (agar ma'lumot yuklangan bo'lsa va status mos kelsa) */}
-              {selectedOrderDetails && (selectedOrderDetails.status === 'pending' || selectedOrderDetails.status === 'processing' || selectedOrderDetails.status === 'ready' || selectedOrderDetails.status === 'new') && (
+          {/* Modal Footer */}
+          <DialogFooter className="pt-4 border-t flex-shrink-0 flex-wrap gap-2 justify-end px-6 pb-6">
+               {selectedOrderDetails && (
+                    <Button variant="outline" onClick={() => printReceipt(selectedOrderDetails)} disabled={isLoadingOrderDetails}>
+                        <Printer className="mr-2 h-4 w-4" /> Chek chop etish
+                    </Button>
+                )}
+              {selectedOrderDetails && (selectedOrderDetails.status === 'pending' || selectedOrderDetails.status === 'processing' || selectedOrderDetails.status === 'ready' || selectedOrderDetails.status === 'new' || selectedOrderDetails.status === 'preparing') && (
                   <Button
                       variant="destructive"
                       onClick={() => {
                           if (confirm(`Haqiqatan ham #${selectedOrderDetails.id} raqamli buyurtmani bekor qilmoqchimisiz? Bu amalni qaytarib bo'lmaydi.`)) {
                                handleCancelOrder(selectedOrderDetails.id);
-                               handleModalClose();
+                               // Optionally close modal immediately after confirming cancel action
+                               // handleModalClose();
                           }
                       }}
+                      disabled={isLoadingOrderDetails}
                   >
-                      <X className="mr-2 h-4 w-4" /> Bekor qilish
+                      <X className="mr-2 h-4 w-4" /> Buyurtmani bekor qilish
                   </Button>
               )}
               <Button variant="secondary" onClick={handleModalClose}>Yopish</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      {/* ========================================================== */}
+      {/* ------ ORDER DETAILS MODAL YAKUNI ------ */}
+      {/* ========================================================== */}
 
       {/* Role Edit Dialog */}
       <Dialog open={showEditRoleDialog} onOpenChange={setShowEditRoleDialog}>
@@ -3397,7 +3390,7 @@ export default function AdminDashboard() {
               <DialogTitle>Rolni tahrirlash</DialogTitle>
               <DialogDescription>Rol nomini o'zgartiring.</DialogDescription>
             </DialogHeader>
-            {isLoadingRoleDetails ? ( // Bu holat endi ishlatilmaydi, lekin qoldiramiz
+            {isLoadingRoleDetails ? ( // Kept for consistency, though not used for fetching
               <div className="flex justify-center items-center py-10">
                 <Loader2 className="h-8 w-8 animate-spin text-sky-500" />
               </div>
@@ -3430,7 +3423,7 @@ export default function AdminDashboard() {
         </DialogContent>
       </Dialog>
 
-      {/* --- YANGI: Add Category Dialog --- */}
+      {/* Add Category Dialog */}
       <Dialog open={showAddCategoryDialog} onOpenChange={setShowAddCategoryDialog}>
         <DialogContent className="sm:max-w-[425px]">
           <form onSubmit={(e) => { e.preventDefault(); handleAddCategory(); }}>
@@ -3460,7 +3453,7 @@ export default function AdminDashboard() {
         </DialogContent>
       </Dialog>
 
-      {/* --- YANGI: Edit Category Dialog --- */}
+      {/* Edit Category Dialog */}
        <Dialog open={showEditCategoryDialog} onOpenChange={setShowEditCategoryDialog}>
         <DialogContent className="sm:max-w-[425px]">
           <form onSubmit={(e) => { e.preventDefault(); handleUpdateCategory(); }}>
@@ -3497,7 +3490,7 @@ export default function AdminDashboard() {
         </DialogContent>
       </Dialog>
 
-      {/* --- YANGI: Delete Category Confirmation Dialog --- */}
+      {/* Delete Category Confirmation Dialog */}
       <Dialog open={showDeleteCategoryConfirmDialog} onOpenChange={setShowDeleteCategoryConfirmDialog}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
@@ -3519,13 +3512,13 @@ export default function AdminDashboard() {
               disabled={isDeletingCategory}
             >
               {isDeletingCategory && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-               <Trash2 className="mr-2 h-4 w-4"/> O'chirish {/* YANGI: Ikonka */}
+               <Trash2 className="mr-2 h-4 w-4"/> O'chirish
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-       {/* --- YANGI: Add Table Dialog --- */}
+       {/* Add Table Dialog */}
        <Dialog open={showAddTableDialog} onOpenChange={setShowAddTableDialog}>
         <DialogContent className="sm:max-w-[425px]">
           <form onSubmit={(e) => { e.preventDefault(); handleAddTable(); }}>
@@ -3580,7 +3573,7 @@ export default function AdminDashboard() {
         </DialogContent>
       </Dialog>
 
-      {/* --- YANGI: Edit Table Dialog --- */}
+      {/* Edit Table Dialog */}
        <Dialog open={showEditTableDialog} onOpenChange={setShowEditTableDialog}>
         <DialogContent className="sm:max-w-[425px]">
           <form onSubmit={(e) => { e.preventDefault(); handleUpdateTable(); }}>
@@ -3639,7 +3632,7 @@ export default function AdminDashboard() {
         </DialogContent>
       </Dialog>
 
-      {/* --- YANGI: Delete Table Confirmation Dialog --- */}
+      {/* Delete Table Confirmation Dialog */}
       <Dialog open={showDeleteTableConfirmDialog} onOpenChange={setShowDeleteTableConfirmDialog}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
